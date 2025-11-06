@@ -108,14 +108,22 @@ function IDVerification() {
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 }
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Ensure video plays after stream is attached
+        await videoRef.current.play();
       }
       setCameraOpen(true);
+      setError(null);
     } catch (err) {
-      setError('Failed to access camera');
+      console.error('Camera error:', err);
+      setError(`Failed to access camera: ${err.message}. Please allow camera permissions.`);
     }
   }, []);
 
@@ -575,7 +583,11 @@ function IDVerification() {
                     ref={videoRef}
                     autoPlay
                     playsInline
-                    className="w-full max-w-xl rounded-xl shadow-lg"
+                    muted
+                    onLoadedMetadata={(e) => {
+                      e.target.play().catch(err => console.error('Video play error:', err));
+                    }}
+                    className="w-full max-w-xl rounded-xl shadow-lg bg-gray-900"
                   />
                   <canvas
                     ref={canvasRef}
