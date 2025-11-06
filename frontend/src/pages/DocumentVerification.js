@@ -90,8 +90,8 @@ function DocumentVerification() {
 
       if (!isBill) {
         try {
-          extractedFace = await extractFaceFromDocument(documentFile);
-          console.log('Face extracted:', extractedFace ? 'Success' : 'No face found');
+          extractedFace = await extractFaceFromDocument(documentFile, documentType);
+          console.log(`Face extracted from ${documentType}:`, extractedFace ? 'Success' : 'No face found');
         } catch (err) {
           console.log('Face extraction failed:', err);
         }

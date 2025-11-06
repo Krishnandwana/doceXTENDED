@@ -6,14 +6,15 @@
 /**
  * Extract face from ID document using smart region detection
  * @param {File|Blob|string} imageFile - The image file to process
+ * @param {string} documentType - Type of document (aadhaar, pan, driving_license, voter_id, passport)
  * @returns {Promise<string|null>} - Base64 data URL of extracted face or null
  */
-export const extractFaceFromDocument = async (imageFile) => {
+export const extractFaceFromDocument = async (imageFile, documentType = 'aadhaar') => {
   try {
     const img = await createImageElement(imageFile);
 
-    // Analyze image to find the most likely face region
-    const faceRegion = await detectFaceRegion(img);
+    // Analyze image to find the most likely face region based on document type
+    const faceRegion = await detectFaceRegion(img, documentType);
 
     if (!faceRegion) {
       console.log('Could not detect face region');
@@ -31,31 +32,65 @@ export const extractFaceFromDocument = async (imageFile) => {
 };
 
 /**
- * Detect face region in image using multiple strategies
+ * Detect face region in image based on document type and layout
  */
-const detectFaceRegion = async (img) => {
-  // Strategy 1: Standard ID card layout (left side)
-  // Most ID cards have photo on the left, roughly 1/3 of width
-  const leftRegion = {
-    x: img.width * 0.03,
-    y: img.height * 0.1,
-    width: img.width * 0.35,
-    height: img.height * 0.7
-  };
+const detectFaceRegion = async (img, documentType) => {
+  // Check orientation first
+  const isPortrait = img.height > img.width;
 
-  // Strategy 2: Check if image is portrait (vertical) vs landscape
-  if (img.height > img.width) {
-    // Portrait orientation - face might be at top
-    return {
-      x: img.width * 0.2,
-      y: img.height * 0.1,
-      width: img.width * 0.6,
-      height: img.height * 0.4
-    };
+  // Document-specific face positions
+  switch (documentType) {
+    case 'driving_license':
+    case 'dl':
+      // Driving License: Photo typically on top-right
+      return {
+        x: img.width * 0.65,
+        y: img.height * 0.08,
+        width: img.width * 0.30,
+        height: img.height * 0.45
+      };
+
+    case 'voter_id':
+    case 'epic':
+      // Voter ID: Photo typically in center or center-left
+      return {
+        x: img.width * 0.30,
+        y: img.height * 0.20,
+        width: img.width * 0.40,
+        height: img.height * 0.60
+      };
+
+    case 'passport':
+      // Passport: Photo typically on left side, higher position
+      return {
+        x: img.width * 0.05,
+        y: img.height * 0.15,
+        width: img.width * 0.30,
+        height: img.height * 0.45
+      };
+
+    case 'aadhaar':
+    case 'pan':
+    default:
+      // Aadhaar/PAN: Photo on left side
+      if (isPortrait) {
+        // Portrait orientation - face at top center
+        return {
+          x: img.width * 0.25,
+          y: img.height * 0.10,
+          width: img.width * 0.50,
+          height: img.height * 0.35
+        };
+      }
+
+      // Default: Left side for landscape cards
+      return {
+        x: img.width * 0.03,
+        y: img.height * 0.15,
+        width: img.width * 0.32,
+        height: img.height * 0.65
+      };
   }
-
-  // Default to left region for landscape ID cards
-  return leftRegion;
 };
 
 /**
