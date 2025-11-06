@@ -15,6 +15,7 @@ class DocumentType(str, Enum):
     DRIVING_LICENSE = "driving_license"
     PASSPORT = "passport"
     VOTER_ID = "voter_id"
+    BILL = "bill"
 
 
 class ProcessingStatus(str, Enum):

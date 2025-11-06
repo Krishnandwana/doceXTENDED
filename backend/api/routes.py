@@ -138,8 +138,9 @@ async def process_document(
     Start processing a document
 
     - **document_id**: ID of uploaded document
-    - **document_type**: Type of document (aadhaar, pan, driving_license, passport, voter_id, bill)
+    - **document_type**: Type of document (aadhaar, pan, driving_license, passport, voter_id)
     - **use_gemini**: Use Gemini AI for OCR (default: true)
+    - **detect_face**: Perform face detection (default: true)
     """
     try:
         # Check if document exists
@@ -167,7 +168,8 @@ async def process_document(
             request.document_id,
             {
                 'document_type': request.document_type,
-                'use_gemini': request.use_gemini
+                'use_gemini': request.use_gemini,
+                'detect_face': request.detect_face
             }
         )
 

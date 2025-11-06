@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 from .gemini_ocr_service import get_gemini_service
-from .paddle_ocr_service import get_paddle_service
+# from .paddle_ocr_service import get_paddle_service
 from .document_parser import get_document_parser
 from .face_detection_service import get_face_service
 
@@ -21,7 +21,7 @@ class DocumentProcessor:
     def __init__(self):
         """Initialize document processor"""
         self.gemini_service = get_gemini_service()
-        self.paddle_service = get_paddle_service()
+        # self.paddle_service = get_paddle_service()
         self.parser = get_document_parser()
         self.face_service = get_face_service()
 
@@ -95,24 +95,24 @@ class DocumentProcessor:
 
                 else:
                     result['errors'].append(f"Gemini OCR failed: {ocr_result.get('error', 'Unknown error')}")
-                    result['warnings'].append("Falling back to PaddleOCR")
-                    use_gemini = False
+                    # result['warnings'].append("Falling back to PaddleOCR")
+                    # use_gemini = False
 
-            if not use_gemini:
-                # Fallback to PaddleOCR
-                ocr_result = self.paddle_service.extract_text(image_path, preprocess=True)
+            # if not use_gemini:
+            #     # Fallback to PaddleOCR
+            #     ocr_result = self.paddle_service.extract_text(image_path, preprocess=True)
 
-                if ocr_result['success']:
-                    result['ocr_result'] = ocr_result
+            #     if ocr_result['success']:
+            #         result['ocr_result'] = ocr_result
 
-                    # Parse the extracted text
-                    parsed_data = self.parser.parse_document(
-                        ocr_result['raw_text'],
-                        document_type
-                    )
-                    result['parsed_data'] = parsed_data
-                else:
-                    result['errors'].append(f"PaddleOCR failed: {ocr_result.get('error', 'Unknown error')}")
+            #         # Parse the extracted text
+            #         parsed_data = self.parser.parse_document(
+            #             ocr_result['raw_text'],
+            #             document_type
+            #         )
+            #         result['parsed_data'] = parsed_data
+            #     else:
+            #         result['errors'].append(f"PaddleOCR failed: {ocr_result.get('error', 'Unknown error')}")
 
             # Step 3: Validate Parsed Data
             if result['parsed_data']:
