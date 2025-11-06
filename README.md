@@ -2,6 +2,12 @@
 
 A comprehensive AI-powered document verification system that uses computer vision, OCR, and face recognition to authenticate Indian identity documents like PAN cards, Aadhaar cards, and more.
 
+## 🌐 Live Demo
+
+- **Frontend**: [https://docu-verify-eight.vercel.app](https://docu-verify-eight.vercel.app)
+- **Backend API**: [https://docu-verify.onrender.com](https://docu-verify.onrender.com)
+- **API Documentation**: [https://docu-verify.onrender.com/docs](https://docu-verify.onrender.com/docs)
+
 ## 🚀 Features
 
 - **Document OCR**: Extract text from identity documents using Google's Gemini AI or PaddleOCR
@@ -118,9 +124,15 @@ chmod +x run_streamlit.sh
 
 ### 5. Access the Applications
 
+**Local Development:**
 - **API Documentation**: http://localhost:8000/docs
 - **React Frontend**: http://localhost:3005
 - **Streamlit Dashboard**: http://localhost:8501
+
+**Production:**
+- **Frontend**: https://docu-verify-eight.vercel.app
+- **Backend API**: https://docu-verify.onrender.com
+- **API Docs**: https://docu-verify.onrender.com/docs
 
 ## 🔧 API Usage
 
@@ -216,12 +228,14 @@ python debug_api.py
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📝 API Documentation
+## 📝 Documentation
 
-Detailed API documentation is available at `/docs` when running the server, or check:
-- [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
-- [CONNECTION_GUIDE.md](CONNECTION_GUIDE.md)
-- [STREAMLIT_GUIDE.md](STREAMLIT_GUIDE.md)
+Detailed documentation is available:
+- [API_DOCUMENTATION.md](API_DOCUMENTATION.md) - Complete API reference
+- [CONNECTION_GUIDE.md](CONNECTION_GUIDE.md) - Integration guide
+- [STREAMLIT_GUIDE.md](STREAMLIT_GUIDE.md) - Dashboard usage
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment guide
+- [Frontend README](frontend/README.md) - Frontend setup and development
 
 ## 🐛 Troubleshooting
 

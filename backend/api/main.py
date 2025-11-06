@@ -24,9 +24,15 @@ app = FastAPI(
 )
 
 # Configure CORS
+# Get allowed origins from environment or use defaults
+allowed_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://docu-verify-eight.vercel.app,http://localhost:3005,http://localhost:3000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
