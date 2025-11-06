@@ -45,27 +45,49 @@ const fileToGenerativePart = async (file) => {
  * Extract text and data from document using Gemini Vision
  */
 export const extractDocumentData = async (imageFile, documentType) => {
-  try {
-    // Use gemini-pro-vision for image analysis with text extraction
-    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+  // Try multiple model names in order of preference
+  const modelNames = [
+    "gemini-1.5-pro-latest",
+    "gemini-1.5-pro",
+    "gemini-pro",
+    "models/gemini-1.5-pro-latest",
+    "models/gemini-1.5-pro",
+    "models/gemini-pro"
+  ];
 
-    // Convert image to format Gemini expects
-    const imagePart = await fileToGenerativePart(imageFile);
+  let lastError = null;
 
-    // Create document-specific prompt
-    const prompt = getPromptForDocumentType(documentType);
+  for (const modelName of modelNames) {
+    try {
+      console.log(`Trying model: ${modelName}`);
+      const model = genAI.getGenerativeModel({ model: modelName });
 
-    // Generate content
-    const result = await model.generateContent([prompt, imagePart]);
-    const response = await result.response;
-    const text = response.text();
+      // Convert image to format Gemini expects
+      const imagePart = await fileToGenerativePart(imageFile);
 
-    // Parse the response
-    return parseGeminiResponse(text, documentType);
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw new Error(`Failed to extract data: ${error.message}`);
+      // Create document-specific prompt
+      const prompt = getPromptForDocumentType(documentType);
+
+      // Generate content
+      const result = await model.generateContent([prompt, imagePart]);
+      const response = await result.response;
+      const text = response.text();
+
+      console.log(`Success with model: ${modelName}`);
+
+      // Parse the response
+      return parseGeminiResponse(text, documentType);
+    } catch (error) {
+      console.warn(`Model ${modelName} failed:`, error.message);
+      lastError = error;
+      // Try next model
+      continue;
+    }
   }
+
+  // If all models failed, throw the last error
+  console.error("All Gemini models failed. Last error:", lastError);
+  throw new Error(`Failed to extract data. Please check your API key and ensure you have access to Gemini models. Error: ${lastError?.message || 'Unknown error'}`);
 };
 
 /**
