@@ -5,8 +5,10 @@ A comprehensive AI-powered document verification system that uses computer visio
 ## 🌐 Live Demo
 
 - **Frontend**: [https://docu-verify-eight.vercel.app](https://docu-verify-eight.vercel.app)
-- **Backend API**: [https://docu-verify.onrender.com](https://docu-verify.onrender.com)
+- **Backend API**: [https://docu-verify.onrender.com](https://docu-verify.onrender.com) *(optional)*
 - **API Documentation**: [https://docu-verify.onrender.com/docs](https://docu-verify.onrender.com/docs)
+
+⚠️ **Security Note**: The document verification feature uses direct Gemini API calls from the frontend. See [SECURITY.md](SECURITY.md) for important security considerations.
 
 ## 🚀 Features
 
@@ -234,7 +236,9 @@ Detailed documentation is available:
 - [API_DOCUMENTATION.md](API_DOCUMENTATION.md) - Complete API reference
 - [CONNECTION_GUIDE.md](CONNECTION_GUIDE.md) - Integration guide
 - [STREAMLIT_GUIDE.md](STREAMLIT_GUIDE.md) - Dashboard usage
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment guide
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment guide (backend)
+- [VERCEL_SETUP.md](VERCEL_SETUP.md) - Vercel deployment guide (frontend)
+- **[SECURITY.md](SECURITY.md) - Security considerations (IMPORTANT)**
 - [Frontend README](frontend/README.md) - Frontend setup and development
 
 ## 🐛 Troubleshooting

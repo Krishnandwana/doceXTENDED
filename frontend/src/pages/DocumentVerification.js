@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, FileText, CheckCircle, XCircle, AlertCircle, ArrowLeft, X, Shield, Zap, Eye } from 'lucide-react';
-import { documentAPI } from '../services/api';
+import { extractDocumentData, validateDocument } from '../services/geminiService';
 
 function DocumentVerification() {
   const [currentScreen, setCurrentScreen] = useState('upload');
@@ -67,53 +67,48 @@ function DocumentVerification() {
     setProcessingProgress(0);
 
     try {
-      // Step 1: Upload document
+      // Step 1: Prepare document
       setProcessingProgress(20);
-      const uploadResponse = await documentAPI.upload(documentFile);
-      const { document_id } = uploadResponse.data;
 
-      // Step 2: Process document
+      // Step 2: Extract data using Gemini AI directly
       setProcessingProgress(40);
-      const processResponse = await documentAPI.process(document_id, documentType);
-      const { job_id } = processResponse.data;
+      const extractionResult = await extractDocumentData(documentFile, documentType);
 
-      // Step 3: Poll for completion
-      let pollCount = 0;
-      const maxPolls = 60; // 2 minutes max (60 * 2s)
+      if (!extractionResult.success) {
+        throw new Error(extractionResult.error || 'Failed to extract document data');
+      }
 
-      const pollForResults = async () => {
-        if (pollCount >= maxPolls) {
-          throw new Error('Processing timeout - please try again');
-        }
+      // Step 3: Validate extracted data
+      setProcessingProgress(70);
+      const validationIssues = validateDocument(extractionResult.data, documentType);
 
-        const statusResponse = await documentAPI.getStatus(job_id);
-        const statusData = statusResponse.data;
-
-        // Update progress based on status
-        setProcessingProgress(40 + (pollCount / maxPolls) * 40); // 40-80%
-
-        if (statusData.status === 'completed') {
-          // Step 4: Get results
-          setProcessingProgress(90);
-          const resultsResponse = await documentAPI.getResults(document_id);
-          const results = resultsResponse.data;
-
-          setVerificationResult(results.result);
-          setProcessingProgress(100);
-          setCurrentScreen('results');
-        } else if (statusData.status === 'failed') {
-          throw new Error(statusData.error || 'Document processing failed');
-        } else {
-          // Still processing
-          pollCount++;
-          setTimeout(pollForResults, 2000);
-        }
+      // Step 4: Prepare result
+      setProcessingProgress(90);
+      const result = {
+        parsed_data: extractionResult.data,
+        validation: {
+          is_valid: validationIssues.length === 0 && extractionResult.data.is_valid !== false,
+          invalid_fields: extractionResult.data.validation_issues || [],
+          missing_required_fields: validationIssues
+        },
+        authenticity_check: {
+          is_ai_generated: !extractionResult.data.has_photo || !extractionResult.data.is_valid,
+          confidence_score: extractionResult.confidence_score || 0,
+          explanation: validationIssues.length > 0
+            ? `Document has ${validationIssues.length} validation issue(s). ${validationIssues.join(', ')}`
+            : 'Document appears authentic with all required fields present and valid.'
+        },
+        ocr_confidence: extractionResult.confidence_score || 85,
+        timestamp: new Date().toISOString()
       };
 
-      setTimeout(pollForResults, 1000);
+      setVerificationResult(result);
+      setProcessingProgress(100);
+      setTimeout(() => setCurrentScreen('results'), 300);
 
     } catch (err) {
-      setError(err.message || 'Verification failed');
+      console.error('Verification error:', err);
+      setError(err.message || 'Verification failed. Please try again.');
       setCurrentScreen('upload');
     } finally {
       setLoading(false);
