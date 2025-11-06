@@ -282,6 +282,63 @@ class DocumentParser:
             }
         }
 
+    def verify_bill_total(self, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Verify if the sum of line items matches the total amount on a bill.
+
+        Args:
+            parsed_data: The structured data extracted from the bill.
+
+        Returns:
+            A dictionary with the verification result.
+        """
+        try:
+            line_items = parsed_data.get('line_items', [])
+            total_amount = parsed_data.get('total_amount')
+
+            if not line_items or total_amount is None:
+                return {
+                    'success': False,
+                    'error': 'Missing line items or total amount for verification.'
+                }
+
+            # Ensure total_amount is a float
+            try:
+                total_amount = float(total_amount)
+            except (ValueError, TypeError):
+                return {
+                    'success': False,
+                    'error': f'Invalid total amount format: {total_amount}'
+                }
+
+            # Calculate sum of line items
+            calculated_total = 0.0
+            for item in line_items:
+                price = item.get('price')
+                if price is not None:
+                    try:
+                        calculated_total += float(price)
+                    except (ValueError, TypeError):
+                        # Ignore items with invalid price format
+                        pass
+            
+            # Compare calculated total with the stated total (within a small tolerance for floating point issues)
+            is_total_correct = abs(calculated_total - total_amount) < 0.01
+
+            return {
+                'success': True,
+                'calculated_total': round(calculated_total, 2),
+                'stated_total': total_amount,
+                'is_total_correct': is_total_correct,
+                'discrepancy': round(abs(calculated_total - total_amount), 2)
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
 
 # Singleton instance
 _parser = None

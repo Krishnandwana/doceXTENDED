@@ -19,7 +19,8 @@ function DocumentVerification() {
     { value: 'pan', label: 'PAN Card' },
     { value: 'driving_license', label: 'Driving License' },
     { value: 'passport', label: 'Passport' },
-    { value: 'voter_id', label: 'Voter ID' }
+    { value: 'voter_id', label: 'Voter ID' },
+    { value: 'bill', label: 'Bill / Invoice' }
   ];
 
   const handleFileSelect = (file) => {
@@ -130,40 +131,21 @@ function DocumentVerification() {
   };
 
   const getAuthenticityScore = () => {
-    if (!verificationResult) return 0;
-
-    // Calculate score based on validation results
-    const validation = verificationResult.validation;
-    if (!validation) return 50;
-
-    const isValid = validation.is_valid;
-    const missingFields = validation.missing_required_fields?.length || 0;
-    const invalidFields = validation.invalid_fields?.length || 0;
-
-    if (isValid && missingFields === 0 && invalidFields === 0) {
-      return 95; // High score for fully valid documents
-    } else if (missingFields > 0 || invalidFields > 0) {
-      return Math.max(30, 70 - (missingFields + invalidFields) * 10); // Reduce score for issues
-    }
-
-    return 50;
+    if (!verificationResult?.authenticity_check) return 0;
+    return parseInt(verificationResult.authenticity_check.confidence_score, 10) || 0;
   };
 
   const getRiskLevel = () => {
-    if (!verificationResult?.validation) return { level: 'Unknown', color: 'gray' };
+    if (!verificationResult?.authenticity_check) return { level: 'Unknown', color: 'gray' };
 
-    const validation = verificationResult.validation;
-    const isValid = validation.is_valid;
-    const missingFields = validation.missing_required_fields?.length || 0;
-    const invalidFields = validation.invalid_fields?.length || 0;
+    const isAiGenerated = verificationResult.authenticity_check.is_ai_generated;
+    const confidence = parseInt(verificationResult.authenticity_check.confidence_score, 10);
 
-    if (isValid && missingFields === 0 && invalidFields === 0) {
-      return { level: 'Low Risk', color: 'green' };
-    } else if (missingFields + invalidFields <= 2) {
+    if (isAiGenerated) {
+      if (confidence > 75) return { level: 'High Risk', color: 'red' };
       return { level: 'Medium Risk', color: 'yellow' };
     }
-
-    return { level: 'High Risk', color: 'red' };
+    return { level: 'Low Risk', color: 'green' };
   };
 
   const getAnalysisDetails = () => {
@@ -172,6 +154,14 @@ function DocumentVerification() {
     const details = [];
     const parsed = verificationResult.parsed_data || {};
     const validation = verificationResult.validation || {};
+    const authenticity = verificationResult.authenticity_check || {};
+
+    // AI Authenticity Check
+    details.push({
+      name: 'AI Generation Check',
+      score: parseInt(authenticity.confidence_score, 10) || 0,
+      interpretation: authenticity.explanation || 'Analysis not available.'
+    });
 
     // OCR Quality
     details.push({
@@ -202,23 +192,14 @@ function DocumentVerification() {
     });
 
     // Face Detection (if available)
-    if (verificationResult.face_detection) {
-      const faceScore = verificationResult.face_detection.faces_found > 0 ? 90 : 20;
+    if (verificationResult.face_detection && verificationResult.face_detection.face_count > 0) {
+      const faceScore = verificationResult.face_detection.face_count > 0 ? 90 : 20;
       details.push({
         name: 'Face Detection',
         score: faceScore,
-        interpretation: verificationResult.face_detection.faces_found > 0
-          ? `${verificationResult.face_detection.faces_found} face(s) detected in document`
-          : 'No faces detected in document'
+        interpretation: `${verificationResult.face_detection.face_count} face(s) detected in document`
       });
     }
-
-    // Document Type Match
-    details.push({
-      name: 'Document Type Verification',
-      score: 90,
-      interpretation: `Document identified as ${documentType.toUpperCase().replace('_', ' ')}`
-    });
 
     return details;
   };
@@ -373,7 +354,7 @@ function DocumentVerification() {
 
         <h2 className="text-2xl font-bold text-gray-900 mb-3">Document Processing</h2>
         <p className="text-center text-gray-600 text-sm mb-8 max-w-md">
-          Extracting and verifying information from your {documentTypes.find(t => t.value === documentType)?.label || 'document'}. Using Gemini AI for high-accuracy OCR and validation.
+          Extracting and verifying information from your {documentTypes.find(t => t.value === documentType)?.label || 'document'}. Using Advanced AI for high-accuracy OCR and validation.
         </p>
 
         <div className="w-full bg-gray-200 rounded-full h-3 mb-6 overflow-hidden">
@@ -413,7 +394,8 @@ function DocumentVerification() {
     const authenticityScore = getAuthenticityScore();
     const riskLevel = getRiskLevel();
     const analyses = getAnalysisDetails();
-    const isAuthentic = authenticityScore >= 70;
+    const isAiGenerated = verificationResult?.authenticity_check?.is_ai_generated;
+    const mainMessage = isAiGenerated ? 'AI-Generated Content Detected' : 'Document Appears Authentic';
 
     return (
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-8 transition-all duration-300">
@@ -434,14 +416,14 @@ function DocumentVerification() {
 
         {/* Score Card */}
         <div className={`rounded-2xl p-8 mb-8 text-center ${
-          isAuthentic
+          !isAiGenerated
             ? 'bg-gradient-to-br from-green-50 to-emerald-100 border-2 border-green-200'
             : 'bg-gradient-to-br from-red-50 to-orange-100 border-2 border-red-200'
         }`}>
           <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 ${
-            isAuthentic ? 'bg-green-600' : 'bg-red-600'
+            !isAiGenerated ? 'bg-green-600' : 'bg-red-600'
           }`}>
-            {isAuthentic ? (
+            {!isAiGenerated ? (
               <CheckCircle className="w-12 h-12 text-white" />
             ) : (
               <XCircle className="w-12 h-12 text-white" />
@@ -449,9 +431,9 @@ function DocumentVerification() {
           </div>
 
           <h3 className={`text-3xl font-bold mb-2 ${
-            isAuthentic ? 'text-green-700' : 'text-red-700'
+            !isAiGenerated ? 'text-green-700' : 'text-red-700'
           }`}>
-            {authenticityScore}% Authentic
+            {mainMessage}
           </h3>
 
           <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${
@@ -464,13 +446,35 @@ function DocumentVerification() {
           </div>
 
           <p className={`mt-4 text-sm font-medium ${
-            isAuthentic ? 'text-green-700' : 'text-red-700'
+            !isAiGenerated ? 'text-green-700' : 'text-red-700'
           }`}>
-            {isAuthentic
-              ? 'Document appears to be authentic with high confidence'
-              : 'Document shows signs of AI generation or manipulation'}
+            {verificationResult?.authenticity_check?.explanation || 'No detailed explanation available.'}
           </p>
         </div>
+
+        {/* Bill Verification */}
+        {verificationResult?.bill_verification?.success && (
+          <div className="mb-6 bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl p-6 border border-purple-200">
+            <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-600" />
+              Bill Verification
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div className="bg-white rounded-xl p-4">
+                    <p className="text-xs text-gray-600 mb-1 uppercase tracking-wide">Stated Total</p>
+                    <p className="text-lg font-semibold text-gray-900">{verificationResult.bill_verification.stated_total}</p>
+                </div>
+                <div className="bg-white rounded-xl p-4">
+                    <p className="text-xs text-gray-600 mb-1 uppercase tracking-wide">Calculated Total</p>
+                    <p className="text-lg font-semibold text-gray-900">{verificationResult.bill_verification.calculated_total}</p>
+                </div>
+                <div className={`rounded-xl p-4 ${verificationResult.bill_verification.is_total_correct ? 'bg-green-100' : 'bg-red-100'}`}>
+                    <p className="text-xs mb-1 uppercase tracking-wide ${verificationResult.bill_verification.is_total_correct ? 'text-green-700' : 'text-red-700'}">Total Match</p>
+                    <p className={`text-lg font-semibold ${verificationResult.bill_verification.is_total_correct ? 'text-green-800' : 'text-red-800'}`}>{verificationResult.bill_verification.is_total_correct ? 'Yes' : 'No'}</p>
+                </div>
+            </div>
+          </div>
+        )}
 
         {/* Extracted Data */}
         {verificationResult?.parsed_data && Object.keys(verificationResult.parsed_data).length > 0 && (

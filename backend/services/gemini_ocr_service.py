@@ -145,6 +145,20 @@ class GeminiOCRService:
                     "address": "address"
                 }
                 Only return valid JSON. If a field is not found, use null.
+                """,
+
+                'bill': """
+                This is a bill or invoice. Extract the following information in JSON format:
+                {
+                    "bill_number": "bill or invoice number",
+                    "place": "name of the shop or establishment",
+                    "line_items": [
+                        {"item": "item name", "price": 123.45},
+                        {"item": "another item", "price": 67.89}
+                    ],
+                    "total_amount": "the final total amount"
+                }
+                Only return valid JSON. If a field is not found, use null. For line_items, return an array of objects, even if there is only one item.
                 """
             }
 
@@ -179,6 +193,56 @@ class GeminiOCRService:
                 'raw_response': response.text if 'response' in locals() else '',
                 'method': 'gemini'
             }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'method': 'gemini'
+            }
+
+    def check_image_authenticity(self, image_path: str) -> Dict[str, Any]:
+        """
+        Analyze an image to determine if it is AI-generated.
+
+        Args:
+            image_path: Path to the document image
+
+        Returns:
+            Dictionary containing authenticity analysis
+        """
+        try:
+            image = Image.open(image_path)
+
+            prompt = f"""
+            Analyze the provided image of a document. Your task is to determine if this image is AI-generated.
+            Look for visual artifacts, inconsistencies in text or fonts, unnatural textures, strange shadows, or other tell-tale signs of AI generation.
+
+            Provide your analysis in a JSON format:
+            {{
+                "is_ai_generated": true/false,
+                "confidence_score": "A score from 0 to 100 indicating your confidence in the assessment.",
+                "explanation": "A brief explanation of the reasons for your assessment, citing specific artifacts if any are found."
+            }}
+            Only return valid JSON.
+            """
+
+            response = self.model.generate_content([prompt, image])
+            response_text = response.text.strip()
+
+            # Extract JSON from markdown code blocks if present
+            if '```json' in response_text:
+                response_text = response_text.split('```json')[1].split('```')[0].strip()
+            elif '```' in response_text:
+                response_text = response_text.split('```')[1].split('```')[0].strip()
+
+            authenticity_data = json.loads(response_text)
+
+            return {
+                'success': True,
+                'authenticity': authenticity_data,
+                'method': 'gemini'
+            }
+
         except Exception as e:
             return {
                 'success': False,

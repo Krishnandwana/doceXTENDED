@@ -63,8 +63,7 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
         result = processor.process_document(
             image_path=file_info['file_path'],
             document_type=options['document_type'],
-            use_gemini=options.get('use_gemini', True),
-            detect_face=options.get('detect_face', True)
+            use_gemini=options.get('use_gemini', True)
         )
 
         # Update progress
@@ -139,9 +138,8 @@ async def process_document(
     Start processing a document
 
     - **document_id**: ID of uploaded document
-    - **document_type**: Type of document (aadhaar, pan, driving_license, passport, voter_id)
+    - **document_type**: Type of document (aadhaar, pan, driving_license, passport, voter_id, bill)
     - **use_gemini**: Use Gemini AI for OCR (default: true)
-    - **detect_face**: Perform face detection (default: true)
     """
     try:
         # Check if document exists
@@ -169,8 +167,7 @@ async def process_document(
             request.document_id,
             {
                 'document_type': request.document_type,
-                'use_gemini': request.use_gemini,
-                'detect_face': request.detect_face
+                'use_gemini': request.use_gemini
             }
         )
 
@@ -236,54 +233,10 @@ async def get_document_results(document_id: str):
         parsed_data=result.get('parsed_data', {}),
         ocr_result=result.get('ocr_result'),
         validation=result.get('validation'),
-        face_detection=result.get('face_detection'),
         gemini_validation=result.get('gemini_validation'),
         errors=result.get('errors', []),
         warnings=result.get('warnings', [])
     )
-
-
-@router.post("/api/face/verify", response_model=FaceVerificationResponse)
-async def verify_faces(request: VerifyFacesRequest):
-    """
-    Verify if faces match between document and live photo
-
-    - **document_image_id**: ID of document image
-    - **live_photo_id**: ID of live photo
-    - **tolerance**: Matching tolerance (0-1, default: 0.6)
-    """
-    try:
-        # Check if both images exist
-        if request.document_image_id not in uploaded_files:
-            raise HTTPException(status_code=404, detail="Document image not found")
-        if request.live_photo_id not in uploaded_files:
-            raise HTTPException(status_code=404, detail="Live photo not found")
-
-        # Get file paths
-        doc_path = uploaded_files[request.document_image_id]['file_path']
-        live_path = uploaded_files[request.live_photo_id]['file_path']
-
-        # Verify faces
-        processor = get_document_processor()
-        result = processor.verify_faces(doc_path, live_path, request.tolerance)
-
-        if not result['success']:
-            return FaceVerificationResponse(
-                success=False,
-                faces_match=False,
-                similarity_percentage=0.0,
-                face_distance=1.0,
-                confidence='none',
-                timestamp=datetime.now().isoformat(),
-                error=result.get('error', 'Verification failed')
-            )
-
-        return FaceVerificationResponse(**result)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Face verification failed: {str(e)}")
 
 
 @router.post("/api/documents/validate", response_model=ValidationResult)
@@ -311,7 +264,8 @@ async def validate_document_data(request: ValidateDataRequest):
 
 @router.get("/api/documents/types", response_model=SupportedTypesResponse)
 async def get_supported_types():
-    """Get list of supported document types and their required fields"""
+    """
+    Get list of supported document types and their required fields"""
     from ..services.document_parser import DocumentParser
 
     parser = DocumentParser()
@@ -365,7 +319,7 @@ async def delete_document(document_id: str):
     try:
         # Delete file
         file_info = uploaded_files[document_id]
-        file_path = Path(file_info['file_path'])
+        file__path = Path(file_info['file_path'])
         if file_path.exists():
             file_path.unlink()
 
@@ -392,7 +346,6 @@ async def health_check():
         services = {
             'gemini': 'operational',
             'paddleocr': 'operational',
-            'face_detection': 'operational',
             'document_processor': 'operational'
         }
 
@@ -408,3 +361,4 @@ async def health_check():
             timestamp=datetime.now().isoformat(),
             services={'error': str(e)}
         )
+

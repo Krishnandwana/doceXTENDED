@@ -1,6 +1,6 @@
 """
 Document Processor
-Main processing pipeline that orchestrates OCR, parsing, validation, and face detection
+Main processing pipeline that orchestrates OCR, parsing, and validation
 """
 
 import os
@@ -52,12 +52,23 @@ class DocumentProcessor:
             'parsed_data': {},
             'validation': {},
             'face_detection': {},
+            'authenticity_check': {},
+            'bill_verification': {},
             'errors': [],
             'warnings': []
         }
 
         try:
-            # Step 1: OCR Extraction
+            # Step 1: Authenticity Check
+            authenticity_result = self.gemini_service.check_image_authenticity(image_path)
+            if authenticity_result['success']:
+                result['authenticity_check'] = authenticity_result['authenticity']
+                if authenticity_result['authenticity'].get('is_ai_generated', False):
+                    result['warnings'].append("Image may be AI-generated.")
+            else:
+                result['warnings'].append("Could not perform image authenticity check.")
+
+            # Step 2: OCR Extraction
             if use_gemini:
                 # Use Gemini for structured extraction
                 ocr_result = self.gemini_service.extract_structured_data(
@@ -103,7 +114,7 @@ class DocumentProcessor:
                 else:
                     result['errors'].append(f"PaddleOCR failed: {ocr_result.get('error', 'Unknown error')}")
 
-            # Step 2: Validate Parsed Data
+            # Step 3: Validate Parsed Data
             if result['parsed_data']:
                 validation = self.parser.validate_document_data(
                     result['parsed_data'],
@@ -114,11 +125,19 @@ class DocumentProcessor:
                 if not validation['is_valid']:
                     result['errors'].extend(validation['errors'])
                 result['warnings'].extend(validation['warnings'])
+
+                # If it's a bill, verify the total
+                if document_type == 'bill':
+                    bill_verification = self.parser.verify_bill_total(result['parsed_data'])
+                    result['bill_verification'] = bill_verification
+                    if bill_verification.get('success') and not bill_verification.get('is_total_correct'):
+                        result['errors'].append("Bill total does not match the sum of line items.")
+
             else:
                 result['errors'].append("No data could be extracted from document")
 
-            # Step 3: Face Detection
-            if detect_face:
+            # Step 4: Face Detection (only for ID documents)
+            if detect_face and document_type != 'bill':
                 face_result = self.face_service.detect_faces(image_path)
 
                 if face_result['success']:
@@ -140,7 +159,7 @@ class DocumentProcessor:
                 else:
                     result['warnings'].append(f"Face detection failed: {face_result.get('error', 'Unknown error')}")
 
-            # Step 4: Determine Overall Status
+            # Step 5: Determine Overall Status
             if result['errors']:
                 result['overall_status'] = 'completed_with_errors'
             elif result['warnings']:
@@ -307,6 +326,33 @@ class DocumentProcessor:
                     report_lines.append(f"  - {warning}")
         else:
             report_lines.append("No validation performed")
+
+        # Add authenticity check info
+        authenticity_check = processing_result.get('authenticity_check', {})
+        if authenticity_check:
+            report_lines.extend([
+                "",
+                "-" * 60,
+                "IMAGE AUTHENTICITY CHECK",
+                "-" * 60,
+                f"AI Generated: {authenticity_check.get('is_ai_generated', 'Unknown')}",
+                f"Confidence: {authenticity_check.get('confidence_score', 'N/A')}",
+                f"Explanation: {authenticity_check.get('explanation', 'N/A')}"
+            ])
+
+        # Add bill verification info
+        bill_verification = processing_result.get('bill_verification', {})
+        if bill_verification and bill_verification.get('success'):
+            report_lines.extend([
+                "",
+                "-" * 60,
+                "BILL VERIFICATION",
+                "-" * 60,
+                f"Stated Total: {bill_verification.get('stated_total')}",
+                f"Calculated Total: {bill_verification.get('calculated_total')}",
+                f"Total Correct: {bill_verification.get('is_total_correct')}",
+                f"Discrepancy: {bill_verification.get('discrepancy')}"
+            ])
 
         # Add face detection info
         face_detection = processing_result.get('face_detection', {})
