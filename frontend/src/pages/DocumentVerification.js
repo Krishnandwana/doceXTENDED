@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Upload, FileText, CheckCircle, XCircle, AlertCircle, ArrowLeft, X, Shield, Zap, Eye } from 'lucide-react';
 import { extractDocumentData, validateDocument } from '../services/geminiService';
+import { extractFaceFromDocument } from '../utils/faceDetection';
 
 function DocumentVerification() {
   const [currentScreen, setCurrentScreen] = useState('upload');
@@ -82,7 +83,21 @@ function DocumentVerification() {
       setProcessingProgress(70);
       const validationIssues = validateDocument(extractionResult.data, documentType);
 
-      // Step 4: Prepare result
+      // Step 4: Extract face photo from document (for ID cards only)
+      setProcessingProgress(85);
+      const isBill = documentType === 'bill';
+      let extractedFace = null;
+
+      if (!isBill) {
+        try {
+          extractedFace = await extractFaceFromDocument(documentFile);
+          console.log('Face extracted:', extractedFace ? 'Success' : 'No face found');
+        } catch (err) {
+          console.log('Face extraction failed:', err);
+        }
+      }
+
+      // Step 5: Prepare result
       setProcessingProgress(90);
       // Better AI-generation detection based on anomalies
       const anomalies = extractionResult.data.anomalies || [];
@@ -91,7 +106,6 @@ function DocumentVerification() {
       );
 
       // For bills, check if total matches
-      const isBill = documentType === 'bill';
       const billVerification = isBill ? {
         success: true,
         stated_total: extractionResult.data.stated_total,
@@ -121,7 +135,8 @@ function DocumentVerification() {
         bill_verification: billVerification,
         ocr_confidence: extractionResult.confidence_score || 85,
         timestamp: new Date().toISOString(),
-        document_image: URL.createObjectURL(documentFile)
+        document_image: URL.createObjectURL(documentFile),
+        extracted_face: extractedFace
       };
 
       setVerificationResult(result);
@@ -539,23 +554,60 @@ function DocumentVerification() {
 
         {/* Document Image - Centered for ID documents */}
         {verificationResult?.document_image && !verificationResult?.bill_verification && (
-          <div className="mb-6 text-center">
-            <div className="inline-block">
-              <img
-                src={verificationResult.document_image}
-                alt="Document"
-                className="max-w-md w-full rounded-2xl shadow-2xl border-4 border-gray-200"
-              />
-              {verificationResult.parsed_data?.name && (
-                <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
-                  <p className="text-2xl font-bold text-gray-900">{verificationResult.parsed_data.name}</p>
-                  {verificationResult.parsed_data?.photo_description && (
-                    <p className="text-sm text-gray-600 mt-2">
-                      Photo: {verificationResult.parsed_data.photo_description}
-                    </p>
-                  )}
+          <div className="mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Extracted Face Photo */}
+              {verificationResult.extracted_face && (
+                <div className="md:col-span-1 flex flex-col items-center">
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200 w-full">
+                    <h4 className="text-lg font-bold text-gray-900 mb-3 text-center">Extracted Photo</h4>
+                    <div className="relative">
+                      <img
+                        src={verificationResult.extracted_face}
+                        alt="Extracted face"
+                        className="w-full rounded-xl shadow-lg border-4 border-white"
+                      />
+                      <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-2">
+                        <CheckCircle className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+                    {verificationResult.parsed_data?.name && (
+                      <div className="mt-4 text-center">
+                        <p className="text-xl font-bold text-gray-900">{verificationResult.parsed_data.name}</p>
+                        {verificationResult.parsed_data?.photo_description && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            {verificationResult.parsed_data.photo_description}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
+
+              {/* Full Document */}
+              <div className={verificationResult.extracted_face ? 'md:col-span-2' : 'md:col-span-3'}>
+                <div className="flex flex-col items-center">
+                  <h4 className="text-lg font-bold text-gray-900 mb-3">
+                    {verificationResult.extracted_face ? 'Full Document' : 'Document'}
+                  </h4>
+                  <img
+                    src={verificationResult.document_image}
+                    alt="Document"
+                    className="w-full rounded-2xl shadow-2xl border-4 border-gray-200"
+                  />
+                  {!verificationResult.extracted_face && verificationResult.parsed_data?.name && (
+                    <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200 w-full text-center">
+                      <p className="text-2xl font-bold text-gray-900">{verificationResult.parsed_data.name}</p>
+                      {verificationResult.parsed_data?.photo_description && (
+                        <p className="text-sm text-gray-600 mt-2">
+                          Photo: {verificationResult.parsed_data.photo_description}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
