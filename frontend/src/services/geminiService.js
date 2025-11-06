@@ -104,15 +104,19 @@ const getPromptForDocumentType = (documentType) => {
         "gender": "Male/Female",
         "address": "Complete address",
         "has_photo": true/false,
+        "photo_description": "Description of photo quality and visibility",
         "is_valid": true/false,
-        "validation_issues": ["list of any issues found"]
+        "anomalies": ["list of any text inconsistencies, image quality issues, or suspicious elements"],
+        "validation_issues": ["list of missing or invalid fields"]
       }
 
-      Check for:
-      - Clear photo visibility
-      - Readable text
-      - Valid Aadhaar number format (12 digits)
-      - Complete address
+      Check for anomalies like:
+      - Text inconsistencies or overlapping text
+      - Poor image quality that suggests manipulation
+      - Misaligned elements
+      - Suspicious artifacts
+
+      Only mark as invalid if there are real issues. Don't mark as AI-generated unless you see clear anomalies.
 
       Return ONLY valid JSON, no additional text.
     `,
@@ -180,9 +184,60 @@ const getPromptForDocumentType = (documentType) => {
         "gender": "Male/Female",
         "address": "Address",
         "has_photo": true/false,
+        "photo_description": "Description of photo quality",
         "is_valid": true/false,
+        "anomalies": ["list of any suspicious elements"],
         "validation_issues": ["list of any issues found"]
       }
+
+      Return ONLY valid JSON, no additional text.
+    `,
+    bill: `
+      Analyze this bill/invoice image CAREFULLY and extract the following information in JSON format:
+      {
+        "vendor_name": "Name of the vendor/shop",
+        "bill_number": "Invoice/Bill number",
+        "date": "Date of bill",
+        "items": [
+          {
+            "name": "Item name",
+            "quantity": "Quantity",
+            "price_per_unit": "Price per unit (number only)",
+            "total_price": "Total price for this item (number only)"
+          }
+        ],
+        "subtotal": "Subtotal amount (number only)",
+        "tax": "Tax amount if any (number only)",
+        "discount": "Discount amount if any (number only)",
+        "stated_total": "Total amount shown on bill (number only)",
+        "calculated_total": "Sum of all item totals (number only - calculate this)",
+        "is_total_correct": true/false (does stated_total match calculated_total?),
+        "total_mismatch_amount": "Difference between stated and calculated (number only)",
+        "is_valid": true/false,
+        "anomalies": [
+          "List any suspicious elements like:",
+          "- Text inconsistencies or overlapping",
+          "- Poor quality suggesting manipulation",
+          "- Calculation errors",
+          "- Suspicious artifacts",
+          "- Unrealistic prices"
+        ],
+        "validation_issues": ["list of any missing or invalid fields"]
+      }
+
+      IMPORTANT CALCULATION RULES:
+      1. Add up ALL item total prices to get calculated_total
+      2. Compare with stated_total on the bill
+      3. Set is_total_correct to true ONLY if they match exactly (or within 1-2 rupees for rounding)
+      4. Calculate total_mismatch_amount as absolute difference
+      5. Only mark as AI-generated if you see REAL anomalies (not just minor quality issues)
+
+      Check for anomalies:
+      - Overlapping or inconsistent text
+      - Suspicious image artifacts
+      - Calculation errors in pricing
+      - Unrealistic prices or quantities
+      - Poor image quality that suggests manipulation
 
       Return ONLY valid JSON, no additional text.
     `
@@ -246,7 +301,8 @@ const getRequiredFields = (documentType) => {
     pan: ['name', 'pan_number', 'dob', 'father_name'],
     passport: ['name', 'passport_number', 'dob', 'nationality'],
     driving_license: ['name', 'dl_number', 'dob', 'address'],
-    voter_id: ['name', 'epic_number', 'dob', 'gender']
+    voter_id: ['name', 'epic_number', 'dob', 'gender'],
+    bill: ['vendor_name', 'items', 'stated_total', 'calculated_total']
   };
 
   return fieldMap[documentType] || fieldMap.aadhaar;

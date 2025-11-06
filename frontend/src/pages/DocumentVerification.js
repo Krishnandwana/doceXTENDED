@@ -84,6 +84,23 @@ function DocumentVerification() {
 
       // Step 4: Prepare result
       setProcessingProgress(90);
+      // Better AI-generation detection based on anomalies
+      const anomalies = extractionResult.data.anomalies || [];
+      const hasRealAnomalies = anomalies.length > 0 && anomalies.some(a =>
+        !a.includes('minor') && !a.includes('quality') && a.trim().length > 0
+      );
+
+      // For bills, check if total matches
+      const isBill = documentType === 'bill';
+      const billVerification = isBill ? {
+        success: true,
+        stated_total: extractionResult.data.stated_total,
+        calculated_total: extractionResult.data.calculated_total,
+        is_total_correct: extractionResult.data.is_total_correct,
+        mismatch_amount: extractionResult.data.total_mismatch_amount,
+        items: extractionResult.data.items || []
+      } : null;
+
       const result = {
         parsed_data: extractionResult.data,
         validation: {
@@ -92,14 +109,19 @@ function DocumentVerification() {
           missing_required_fields: validationIssues
         },
         authenticity_check: {
-          is_ai_generated: !extractionResult.data.has_photo || !extractionResult.data.is_valid,
+          is_ai_generated: hasRealAnomalies,
           confidence_score: extractionResult.confidence_score || 0,
-          explanation: validationIssues.length > 0
-            ? `Document has ${validationIssues.length} validation issue(s). ${validationIssues.join(', ')}`
-            : 'Document appears authentic with all required fields present and valid.'
+          anomalies: anomalies,
+          explanation: hasRealAnomalies
+            ? `Found ${anomalies.length} anomaly/anomalies: ${anomalies.join(', ')}`
+            : validationIssues.length > 0
+              ? `Document has ${validationIssues.length} validation issue(s). ${validationIssues.join(', ')}`
+              : 'Document appears authentic with no suspicious elements detected.'
         },
+        bill_verification: billVerification,
         ocr_confidence: extractionResult.confidence_score || 85,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        document_image: URL.createObjectURL(documentFile)
       };
 
       setVerificationResult(result);
@@ -447,50 +469,120 @@ function DocumentVerification() {
           </p>
         </div>
 
-        {/* Bill Verification */}
+        {/* Bill Verification and Items */}
         {verificationResult?.bill_verification?.success && (
-          <div className="mb-6 bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl p-6 border border-purple-200">
-            <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-600" />
-              Bill Verification
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+          <>
+            {/* Bill Items List */}
+            {verificationResult.bill_verification.items && verificationResult.bill_verification.items.length > 0 && (
+              <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200">
+                <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-green-600" />
+                  Bill Items ({verificationResult.bill_verification.items.length} items)
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b-2 border-green-200">
+                        <th className="text-left py-2 px-3 text-sm font-semibold text-gray-700">Item</th>
+                        <th className="text-center py-2 px-3 text-sm font-semibold text-gray-700">Qty</th>
+                        <th className="text-right py-2 px-3 text-sm font-semibold text-gray-700">Price/Unit</th>
+                        <th className="text-right py-2 px-3 text-sm font-semibold text-gray-700">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {verificationResult.bill_verification.items.map((item, index) => (
+                        <tr key={index} className="border-b border-green-100 hover:bg-green-50">
+                          <td className="py-3 px-3 text-sm text-gray-900">{item.name}</td>
+                          <td className="py-3 px-3 text-sm text-center text-gray-700">{item.quantity}</td>
+                          <td className="py-3 px-3 text-sm text-right text-gray-700">₹{item.price_per_unit}</td>
+                          <td className="py-3 px-3 text-sm text-right font-semibold text-gray-900">₹{item.total_price}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Total Verification */}
+            <div className="mb-6 bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl p-6 border border-purple-200">
+              <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-600" />
+                Total Verification
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center mb-4">
                 <div className="bg-white rounded-xl p-4">
-                    <p className="text-xs text-gray-600 mb-1 uppercase tracking-wide">Stated Total</p>
-                    <p className="text-lg font-semibold text-gray-900">{verificationResult.bill_verification.stated_total}</p>
+                  <p className="text-xs text-gray-600 mb-1 uppercase tracking-wide">Stated Total</p>
+                  <p className="text-xl font-bold text-gray-900">₹{verificationResult.bill_verification.stated_total}</p>
                 </div>
                 <div className="bg-white rounded-xl p-4">
-                    <p className="text-xs text-gray-600 mb-1 uppercase tracking-wide">Calculated Total</p>
-                    <p className="text-lg font-semibold text-gray-900">{verificationResult.bill_verification.calculated_total}</p>
+                  <p className="text-xs text-gray-600 mb-1 uppercase tracking-wide">Calculated Total</p>
+                  <p className="text-xl font-bold text-gray-900">₹{verificationResult.bill_verification.calculated_total}</p>
                 </div>
                 <div className={`rounded-xl p-4 ${verificationResult.bill_verification.is_total_correct ? 'bg-green-100' : 'bg-red-100'}`}>
-                    <p className="text-xs mb-1 uppercase tracking-wide ${verificationResult.bill_verification.is_total_correct ? 'text-green-700' : 'text-red-700'}">Total Match</p>
-                    <p className={`text-lg font-semibold ${verificationResult.bill_verification.is_total_correct ? 'text-green-800' : 'text-red-800'}`}>{verificationResult.bill_verification.is_total_correct ? 'Yes' : 'No'}</p>
+                  <p className={`text-xs mb-1 uppercase tracking-wide ${verificationResult.bill_verification.is_total_correct ? 'text-green-700' : 'text-red-700'}`}>Match Status</p>
+                  <p className={`text-xl font-bold ${verificationResult.bill_verification.is_total_correct ? 'text-green-800' : 'text-red-800'}`}>
+                    {verificationResult.bill_verification.is_total_correct ? '✓ Correct' : '✗ Mismatch'}
+                  </p>
                 </div>
+              </div>
+              {!verificationResult.bill_verification.is_total_correct && verificationResult.bill_verification.mismatch_amount && (
+                <div className="bg-red-100 border border-red-200 rounded-xl p-4 text-center">
+                  <p className="text-sm text-red-700">
+                    <strong>Difference:</strong> ₹{verificationResult.bill_verification.mismatch_amount}
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Document Image - Centered for ID documents */}
+        {verificationResult?.document_image && !verificationResult?.bill_verification && (
+          <div className="mb-6 text-center">
+            <div className="inline-block">
+              <img
+                src={verificationResult.document_image}
+                alt="Document"
+                className="max-w-md w-full rounded-2xl shadow-2xl border-4 border-gray-200"
+              />
+              {verificationResult.parsed_data?.name && (
+                <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <p className="text-2xl font-bold text-gray-900">{verificationResult.parsed_data.name}</p>
+                  {verificationResult.parsed_data?.photo_description && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      Photo: {verificationResult.parsed_data.photo_description}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* Extracted Data */}
-        {verificationResult?.parsed_data && Object.keys(verificationResult.parsed_data).length > 0 && (
+        {verificationResult?.parsed_data && Object.keys(verificationResult.parsed_data).length > 0 && !verificationResult?.bill_verification && (
           <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
             <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-600" />
               Extracted Document Data
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(verificationResult.parsed_data).map(([key, value]) => (
-                value && (
-                  <div key={key} className="bg-white rounded-xl p-4">
-                    <p className="text-xs text-gray-600 mb-1 uppercase tracking-wide">
-                      {key.replace(/_/g, ' ')}
-                    </p>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {typeof value === 'string' ? value : JSON.stringify(value)}
-                    </p>
-                  </div>
-                )
-              ))}
+              {Object.entries(verificationResult.parsed_data)
+                .filter(([key]) => !['photo_description', 'anomalies', 'validation_issues', 'items', 'is_valid', 'document_type', 'confidence_score'].includes(key))
+                .map(([key, value]) => (
+                  value && (
+                    <div key={key} className="bg-white rounded-xl p-4">
+                      <p className="text-xs text-gray-600 mb-1 uppercase tracking-wide">
+                        {key.replace(/_/g, ' ')}
+                      </p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {typeof value === 'boolean' ? (value ? 'Yes' : 'No') :
+                         typeof value === 'string' ? value : JSON.stringify(value)}
+                      </p>
+                    </div>
+                  )
+                ))}
             </div>
           </div>
         )}

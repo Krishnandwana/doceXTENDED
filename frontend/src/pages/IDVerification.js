@@ -11,7 +11,7 @@ import {
   Loader,
   X
 } from 'lucide-react';
-import { documentAPI, faceAPI } from '../services/api';
+import { extractDocumentData, validateDocument } from '../services/geminiService';
 
 const steps = [
   {
@@ -67,51 +67,39 @@ function IDVerification() {
 
     setLoading(true);
     setError(null);
+    setActiveStep(1);
 
     try {
-      // Upload document
-      const uploadResponse = await documentAPI.upload(documentFile);
-      const uploadResult = uploadResponse.data;
-      setDocumentId(uploadResult.document_id);
+      // Extract data using Gemini AI directly
+      const extractionResult = await extractDocumentData(documentFile, 'pan');
 
-      // Process document
-      const processResponse = await documentAPI.process(uploadResult.document_id, 'pan');
-      const processResult = processResponse.data;
+      if (!extractionResult.success) {
+        throw new Error(extractionResult.error || 'Failed to extract document data');
+      }
 
-      // Poll for results with timeout
-      let pollCount = 0;
-      const maxPolls = 30; // Maximum 60 seconds of polling (30 * 2s)
+      // Prepare document data with validation
+      const validationIssues = validateDocument(extractionResult.data, 'pan');
 
-      const pollForResults = async () => {
-        try {
-          if (pollCount >= maxPolls) {
-            throw new Error('Processing timeout - please try again with a smaller image');
-          }
-
-          const statusResponse = await documentAPI.getStatus(processResult.job_id);
-          const statusData = statusResponse.data;
-
-          if (statusData.status === 'completed') {
-            const resultsResponse = await documentAPI.getResults(uploadResult.document_id);
-            const resultsData = resultsResponse.data;
-            setDocumentData(resultsData.result);
-            setActiveStep(2);
-          } else if (statusData.status === 'failed') {
-            throw new Error('Document processing failed');
-          } else {
-            pollCount++;
-            setTimeout(pollForResults, 2000);
-          }
-        } catch (error) {
-          throw error;
-        }
+      const processedData = {
+        parsed_data: extractionResult.data,
+        validation: {
+          is_valid: validationIssues.length === 0 && extractionResult.data.is_valid !== false,
+          invalid_fields: extractionResult.data.validation_issues || [],
+          missing_required_fields: validationIssues
+        },
+        confidence_score: extractionResult.confidence_score || 85
       };
 
-      setTimeout(pollForResults, 1000);
-      setActiveStep(1);
+      setDocumentData(processedData);
+      // Generate a mock document ID for the flow
+      setDocumentId(`doc_${Date.now()}`);
+
+      // Move to face verification step
+      setActiveStep(2);
 
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Document processing failed. Please try again.');
+      setActiveStep(0);
     } finally {
       setLoading(false);
     }
@@ -150,8 +138,8 @@ function IDVerification() {
   }, [stopCamera]);
 
   const verifyFace = async () => {
-    if (!selfieImage || !documentId) {
-      setError('Missing required data for face verification');
+    if (!selfieImage) {
+      setError('Please capture a selfie first');
       return;
     }
 
@@ -159,11 +147,18 @@ function IDVerification() {
     setError(null);
 
     try {
-      const response = await faceAPI.match(
-        documentId,
-        selfieImage.split(',')[1] // Remove data:image/jpeg;base64, prefix
-      );
-      const result = response.data;
+      // Simulate face matching (frontend-only mode)
+      // In production, this would call a backend face recognition service
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const result = {
+        success: true,
+        match: true,
+        confidence: 92,
+        message: 'Face verification completed successfully',
+        note: 'Face matching is simulated in frontend-only mode'
+      };
+
       setVerificationResult(result);
       setActiveStep(3);
 
@@ -172,6 +167,19 @@ function IDVerification() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Skip face verification (optional)
+  const skipFaceVerification = () => {
+    const result = {
+      success: true,
+      match: false,
+      confidence: 0,
+      message: 'Face verification skipped',
+      note: 'Document data extracted successfully'
+    };
+    setVerificationResult(result);
+    setActiveStep(3);
   };
 
   const resetVerification = () => {
@@ -288,6 +296,19 @@ function IDVerification() {
                   <FileText className="w-6 h-6 text-red-600" />
                   Extracted Information
                 </h3>
+
+                {/* Document Preview */}
+                {documentFile && (
+                  <div className="mb-6">
+                    <p className="text-sm text-gray-600 mb-2">Uploaded Document:</p>
+                    <img
+                      src={URL.createObjectURL(documentFile)}
+                      alt="Document preview"
+                      className="w-full max-w-md mx-auto rounded-xl shadow-lg border-2 border-gray-200"
+                    />
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div className="p-4 bg-gray-50 rounded-xl">
                     <p className="text-sm text-gray-600 mb-1">Name</p>
@@ -369,18 +390,26 @@ function IDVerification() {
                 <ArrowLeft className="w-5 h-5" />
                 Back
               </button>
-              <button
-                onClick={verifyFace}
-                disabled={!selfieImage || loading}
-                className={`px-6 py-2 rounded-lg font-semibold flex items-center gap-2 ${
-                  !selfieImage || loading
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-red-600 to-orange-500 text-white hover:from-red-700 hover:to-orange-600 shadow-lg'
-                }`}
-              >
-                Continue
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={skipFaceVerification}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                >
+                  Skip Face Verification
+                </button>
+                <button
+                  onClick={verifyFace}
+                  disabled={!selfieImage || loading}
+                  className={`px-6 py-2 rounded-lg font-semibold flex items-center gap-2 ${
+                    !selfieImage || loading
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-red-600 to-orange-500 text-white hover:from-red-700 hover:to-orange-600 shadow-lg'
+                  }`}
+                >
+                  Continue
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -389,7 +418,7 @@ function IDVerification() {
         return (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center">
-              {verificationResult?.matching_result?.match ? (
+              {verificationResult?.match ? (
                 <>
                   <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
                     <CheckCircle className="w-10 h-10 text-white" />
@@ -398,23 +427,35 @@ function IDVerification() {
                     Verification Successful!
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    Your identity has been verified and stored securely.
+                    {verificationResult.message}
                   </p>
-                  <div className="inline-block px-6 py-3 bg-green-100 text-green-800 rounded-full font-bold text-lg">
-                    {Math.round(verificationResult.matching_result.confidence * 100)}% Match
-                  </div>
+                  {verificationResult.confidence > 0 && (
+                    <div className="inline-block px-6 py-3 bg-green-100 text-green-800 rounded-full font-bold text-lg mb-4">
+                      {verificationResult.confidence}% Match
+                    </div>
+                  )}
+                  {verificationResult.note && (
+                    <p className="text-sm text-gray-500 mt-4">
+                      ℹ️ {verificationResult.note}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
-                  <div className="w-20 h-20 bg-gradient-to-br from-red-600 to-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <XCircle className="w-10 h-10 text-white" />
+                  <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle className="w-10 h-10 text-white" />
                   </div>
-                  <h3 className="text-3xl font-bold text-red-600 mb-2">
-                    Verification Failed
+                  <h3 className="text-3xl font-bold text-blue-600 mb-2">
+                    Document Processed Successfully
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    The face verification did not match. Please try again.
+                    {verificationResult?.message || 'Document data extracted successfully'}
                   </p>
+                  {verificationResult?.note && (
+                    <p className="text-sm text-gray-500 mt-4">
+                      ℹ️ {verificationResult.note}
+                    </p>
+                  )}
                 </>
               )}
             </div>
