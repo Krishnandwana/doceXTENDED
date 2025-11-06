@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, FileText, CheckCircle, XCircle, AlertCircle, ArrowLeft, X, Shield, Zap, Eye } from 'lucide-react';
-import { extractDocumentData, validateDocument } from '../services/geminiService';
+import { extractDocumentData, validateDocument } from '../services/geminiServiceSimple';
 
 function DocumentVerification() {
   const [currentScreen, setCurrentScreen] = useState('upload');
