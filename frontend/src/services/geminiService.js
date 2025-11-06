@@ -46,8 +46,8 @@ const fileToGenerativePart = async (file) => {
  */
 export const extractDocumentData = async (imageFile, documentType) => {
   try {
-    // Use gemini-1.5-flash for faster, cost-effective processing
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // Use gemini-pro-vision for image analysis with text extraction
+    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
     // Convert image to format Gemini expects
     const imagePart = await fileToGenerativePart(imageFile);

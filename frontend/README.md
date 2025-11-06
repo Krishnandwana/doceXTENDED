@@ -2,6 +2,8 @@
 
 Modern React application for document verification and identity validation with AI-powered OCR.
 
+⚠️ **Security Notice**: This frontend uses direct Gemini API calls for document OCR. The API key will be visible in browser code. See [../SECURITY.md](../SECURITY.md) for important security considerations and mitigation steps.
+
 ## Features
 
 - **Dashboard** - Overview of verification statistics and quick actions
@@ -14,9 +16,10 @@ Modern React application for document verification and identity validation with 
 
 - **React 19.2.0** - UI framework
 - **React Router 7.9.5** - Client-side routing
-- **Tailwind CSS 4.1.16** - Utility-first styling
+- **Tailwind CSS 3.4.1** - Utility-first styling
 - **Lucide React 0.552.0** - Icon library
 - **Axios 1.13.1** - HTTP client for API calls
+- **Google Generative AI** - Direct Gemini API integration for OCR
 
 ## Prerequisites
 
@@ -38,9 +41,14 @@ The `.env` file should already exist with:
 
 ```env
 REACT_APP_API_URL=http://localhost:8000
+PORT=3005
+REACT_APP_GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-If you need to change the backend URL, edit this file.
+**Important**:
+- `REACT_APP_GEMINI_API_KEY` is required for document OCR
+- Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+- **Restrict the API key** in Google Cloud Console (see [Security](#security) section below)
 
 ## Running the Application
 
@@ -177,6 +185,43 @@ npm install
 - Firefox (latest)
 - Safari (latest)
 - Edge (latest)
+
+## Security
+
+⚠️ **IMPORTANT**: This application uses direct Gemini API calls from the frontend, which means the API key is exposed in browser code.
+
+### Required Security Steps
+
+1. **Restrict API Key in Google Cloud Console**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - Edit your Gemini API key
+   - Set Application restrictions: "HTTP referrers"
+   - Add allowed domains:
+     ```
+     https://docu-verify-eight.vercel.app/*
+     http://localhost:3005/*
+     ```
+   - Set API restrictions to only "Generative Language API"
+
+2. **Set Usage Quotas**
+   - Go to [Quotas page](https://console.cloud.google.com/iam-admin/quotas)
+   - Limit requests per day: 100-500
+   - Limit requests per minute: 10-20
+
+3. **Enable Billing Alerts**
+   - Set budget alerts in Google Cloud Console
+   - Monitor API usage regularly
+
+### Production Deployment
+
+For Vercel deployment:
+- Set `REACT_APP_GEMINI_API_KEY` in Vercel environment variables
+- Mark it as "Secret" in Vercel settings
+- See [../VERCEL_SETUP.md](../VERCEL_SETUP.md) for detailed instructions
+
+### Complete Security Guide
+
+Read [../SECURITY.md](../SECURITY.md) for comprehensive security considerations, best practices, and incident response procedures.
 
 ## License
 
