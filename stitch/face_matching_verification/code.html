@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Face Matching Verification</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ff791a",
+                        "background-light": "#f8f7f5",
+                        "background-dark": "#23170f",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom styles for mesh overlay simulation */
+        .mesh-grid {
+            background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased selection:bg-primary selection:text-white overflow-x-hidden">
+<div class="relative flex min-h-screen w-full flex-col max-w-md mx-auto shadow-2xl bg-background-light dark:bg-background-dark">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between p-4 sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md">
+<button class="text-gray-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-2xl">arrow_back</span>
+</button>
+<h2 class="text-gray-900 dark:text-white text-base font-bold tracking-tight">Biometric Analysis</h2>
+<button class="text-gray-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-2xl">help</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col px-5 pb-6">
+<!-- Context Header -->
+<div class="text-center mb-6 mt-2">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 dark:bg-primary/20 border border-primary/20 mb-3">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="text-primary text-xs font-bold uppercase tracking-wider">Processing</span>
+</div>
+<h1 class="text-gray-900 dark:text-white text-2xl font-bold mb-1">Verifying Identity</h1>
+<p class="text-gray-500 dark:text-gray-400 text-sm">Cross-referencing facial geometry landmarks.</p>
+</div>
+<!-- Image Comparison Area -->
+<div class="relative grid grid-cols-2 gap-4 mb-8">
+<!-- Connector Graphic (Visual flourish connecting the two) -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-background-dark rounded-full border-2 border-primary flex items-center justify-center shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-primary text-sm">compare_arrows</span>
+</div>
+<!-- Source Image (Document) -->
+<div class="relative group">
+<div class="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-gray-800 dark:bg-gray-700 rounded text-[10px] font-medium text-white z-10 border border-gray-600">
+                        SOURCE ID
+                    </div>
+<div class="relative w-full aspect-[3/4] rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 shadow-sm bg-gray-100 dark:bg-gray-900">
+<div class="w-full h-full bg-center bg-cover grayscale opacity-80" data-alt="Portrait photo extracted from ID document" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCb9cBtJzdkPqe8I3BXjV3uiuILZwWxlNQOPKmu-QU1RpEdbGxGDit5UaWWPZjAmwPgN0JnsKjFMh9lh53u10hvXYw1qvg3A90CPS8BEFWJlMEftXh2X-QHOSXzXY9ZOwYIXTTVPep_MhSQZxtPUlNyG2Q-bj_nsXGntPr-Z6fosHGDOVlW6w7vQiYtZPzydhzE5BRjC5SHMe_ynYyl8K52nmpw7ZMcutLL33sA5wvUAzvpgq3cj1GQzs0gfLZ79pahPO-ECr-WurU');"></div>
+<!-- Biometric Overlay Static -->
+<div class="absolute inset-0 opacity-40">
+<svg class="w-full h-full stroke-white fill-none" stroke-width="0.5" viewbox="0 0 100 133">
+<!-- Simple Face Contour -->
+<path d="M25,40 Q50,45 75,40" stroke-dasharray="2,2"></path> <!-- Eye line -->
+<path d="M40,75 Q50,80 60,75" stroke-dasharray="2,2"></path> <!-- Mouth -->
+<circle cx="35" cy="40" fill="white" r="1"></circle>
+<circle cx="65" cy="40" fill="white" r="1"></circle>
+<circle cx="50" cy="55" fill="white" r="1"></circle>
+<rect height="70" rx="10" stroke="white" stroke-dasharray="4,2" stroke-opacity="0.5" width="60" x="20" y="20"></rect>
+</svg>
+</div>
+<div class="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/80 to-transparent p-3 flex flex-col justify-end">
+<span class="text-[10px] text-gray-300 font-mono">IMG_SRC_001</span>
+</div>
+</div>
+</div>
+<!-- Live Capture Image -->
+<div class="relative group">
+<div class="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-primary rounded text-[10px] font-bold text-white z-10 shadow-lg shadow-primary/30">
+                        LIVE CAPTURE
+                    </div>
+<div class="relative w-full aspect-[3/4] rounded-xl overflow-hidden border-2 border-primary shadow-[0_0_15px_-3px_rgba(255,121,26,0.3)] bg-gray-900">
+<div class="w-full h-full bg-center bg-cover" data-alt="Live selfie camera capture for verification" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBn1PbXBTfCIxI_LhuVG7SkLI-GYKd3rSbcms2cUexFg0qgmo2QpMkKEdADFsOVwtrCTpsE6JLVN8DA5XSRYkrF5CVYaLw9MlXK80TH5w8i_MisNdYxksQQWELZr-ELbIb51ii923tj4AJVsadW_wPEaPP3dm5sVva4iKLVMggTw3PraT6FawGZHFqVSVHVQVjeAfuM4w-GyI9Sc13YwUV4XK2o0OcEvn2q1VidrDihxHRe6LpqyBwEFK3qRn656ffnXoE-QALlg5I');"></div>
+<!-- Active Scanning Overlay -->
+<div class="absolute inset-0 mesh-grid opacity-30"></div>
+<div class="absolute inset-0">
+<svg class="w-full h-full stroke-primary fill-none" stroke-width="0.8" viewbox="0 0 100 133">
+<!-- Active Landmarks -->
+<path d="M25,40 Q50,45 75,40"></path>
+<path d="M40,75 Q50,80 60,75"></path>
+<path d="M50,25 L50,60"></path> <!-- Nose bridge -->
+<path d="M25,40 L35,60 L50,75 L65,60 L75,40" stroke-opacity="0.5"></path> <!-- Cheek triangulation -->
+<circle class="fill-primary animate-pulse" cx="35" cy="40" r="1.5"></circle>
+<circle class="fill-primary animate-pulse" cx="65" cy="40" r="1.5"></circle>
+<circle class="fill-primary animate-pulse" cx="50" cy="55" r="1.5"></circle>
+<circle class="fill-primary animate-pulse" cx="50" cy="78" r="1.5"></circle>
+</svg>
+</div>
+<!-- Scanner Line Simulation -->
+<div class="absolute inset-x-0 h-0.5 bg-primary/50 shadow-[0_0_10px_2px_rgba(255,121,26,0.5)] top-[40%]"></div>
+</div>
+</div>
+</div>
+<!-- Confidence Score Ring -->
+<div class="flex flex-col items-center justify-center mb-8">
+<div class="relative size-32">
+<svg class="size-full -rotate-90" viewbox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+<!-- Background Circle -->
+<path class="text-gray-200 dark:text-gray-800" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="2.5"></path>
+<!-- Progress Circle (94% filled) -->
+<path class="text-primary drop-shadow-[0_0_4px_rgba(255,121,26,0.6)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="94, 100" stroke-linecap="round" stroke-width="2.5"></path>
+</svg>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+<span class="text-3xl font-bold text-gray-900 dark:text-white tabular-nums tracking-tighter">94%</span>
+<span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide mt-0.5">Match</span>
+</div>
+</div>
+</div>
+<!-- Analysis Details List -->
+<div class="w-full bg-white dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 p-4 space-y-3 shadow-sm">
+<!-- Item 1 -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="p-1.5 rounded-full bg-green-500/20 text-green-600 dark:text-green-400">
+<span class="material-symbols-outlined text-lg">check_circle</span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-gray-900 dark:text-white">Liveness Check</span>
+<span class="text-xs text-gray-500 dark:text-gray-400">Subject is real person</span>
+</div>
+</div>
+<span class="text-xs font-mono font-bold text-green-600 dark:text-green-400">PASS</span>
+</div>
+<!-- Divider -->
+<div class="h-px w-full bg-gray-100 dark:bg-white/10"></div>
+<!-- Item 2 -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="p-1.5 rounded-full bg-green-500/20 text-green-600 dark:text-green-400">
+<span class="material-symbols-outlined text-lg">face</span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-gray-900 dark:text-white">Geometric Analysis</span>
+<span class="text-xs text-gray-500 dark:text-gray-400">128 point comparison</span>
+</div>
+</div>
+<span class="text-xs font-mono font-bold text-green-600 dark:text-green-400">PASS</span>
+</div>
+<!-- Divider -->
+<div class="h-px w-full bg-gray-100 dark:bg-white/10"></div>
+<!-- Item 3 -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="p-1.5 rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-lg animate-spin">sync</span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-gray-900 dark:text-white">Texture Matching</span>
+<span class="text-xs text-gray-500 dark:text-gray-400">Skin tone &amp; micro-features</span>
+</div>
+</div>
+<span class="text-xs font-mono font-bold text-primary">ANALYZING</span>
+</div>
+</div>
+<!-- Spacer -->
+<div class="flex-1 min-h-[20px]"></div>
+<!-- Footer Action -->
+<div class="mt-auto">
+<div class="flex items-center justify-center gap-2 mb-4">
+<span class="material-symbols-outlined text-gray-400 text-sm">lock</span>
+<p class="text-[11px] text-gray-400 dark:text-gray-500">Biometric data is encrypted and processed locally.</p>
+</div>
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-lg shadow-lg shadow-primary/25 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98]">
+<span>Confirm Identity</span>
+<span class="material-symbols-outlined text-xl">arrow_forward</span>
+</button>
+</div>
+</main>
+</div>
+</body></html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DocVerify API Documentation</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ff791a",
+                        "background-light": "#f8f7f5",
+                        "background-dark": "#1a110a", /* Slightly darker than provided for better contrast */
+                        "surface-dark": "#23170f",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"],
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                    animation: {
+                        'flow': 'flow 15s linear infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        flow: {
+                            '0%': { backgroundPosition: '0% 50%' },
+                            '100%': { backgroundPosition: '100% 50%' },
+                        }
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a110a; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b3220; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff791a; 
+        }
+
+        /* Subtle Grid Background simulation */
+        .bg-grid-pattern {
+            background-image: 
+                linear-gradient(to right, rgba(255, 121, 26, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 121, 26, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+        }
+
+        /* Animated Glow */
+        .glow-orb {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255,121,26,0.15) 0%, rgba(0,0,0,0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            animation: float 10s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); opacity: 0.5; }
+            50% { transform: translate(30px, -30px); opacity: 0.8; }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark text-white font-display antialiased selection:bg-primary/30 min-h-screen flex flex-col overflow-x-hidden relative">
+<!-- Background FX -->
+<div class="fixed inset-0 z-0 bg-grid-pattern pointer-events-none"></div>
+<div class="glow-orb top-[-50px] left-[-50px]"></div>
+<div class="glow-orb bottom-[20%] right-[-100px]" style="animation-delay: -5s;"></div>
+<!-- Sticky Header -->
+<header class="sticky top-0 z-50 bg-background-dark/80 backdrop-blur-xl border-b border-white/5">
+<div class="flex items-center justify-between px-4 h-16 max-w-7xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="text-gray-400 hover:text-white transition-colors p-1 rounded-md active:bg-white/5">
+<span class="material-symbols-outlined !text-[28px]">menu</span>
+</button>
+<div class="flex items-center gap-2">
+<div class="size-8 rounded bg-gradient-to-br from-primary to-orange-900 flex items-center justify-center shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-white !text-[20px]">description</span>
+</div>
+<span class="font-bold text-lg tracking-tight hidden sm:block">DocVerify</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="hidden xs:flex h-8 items-center px-3 rounded-full bg-surface-dark border border-white/10 text-xs font-medium text-gray-400">
+                    v2.1
+                </div>
+<button class="text-gray-400 hover:text-primary transition-colors p-2 rounded-full hover:bg-white/5">
+<span class="material-symbols-outlined !text-[24px]">search</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Layout -->
+<div class="flex-1 flex relative z-10 max-w-7xl mx-auto w-full">
+<!-- Left Navigation (Desktop hidden on mobile, represented as drawer logic) -->
+<aside class="hidden lg:block w-64 shrink-0 border-r border-white/5 h-[calc(100vh-64px)] overflow-y-auto sticky top-16 py-6 pr-4">
+<div class="space-y-1">
+<div class="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Getting Started</div>
+<a class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#">
+<span class="material-symbols-outlined !text-[20px] group-hover:text-primary transition-colors">info</span>
+                    Introduction
+                </a>
+<a class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#">
+<span class="material-symbols-outlined !text-[20px] group-hover:text-primary transition-colors">lock</span>
+                    Authentication
+                </a>
+<div class="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 mt-6">Resources</div>
+<a class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-white bg-primary/10 rounded-lg relative border-l-2 border-primary" href="#">
+<span class="material-symbols-outlined !text-[20px] text-primary">mail</span>
+                    Envelopes
+                </a>
+<a class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#">
+<span class="material-symbols-outlined !text-[20px] group-hover:text-primary transition-colors">webhook</span>
+                    Webhooks
+                </a>
+<a class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#">
+<span class="material-symbols-outlined !text-[20px] group-hover:text-primary transition-colors">group</span>
+                    Recipients
+                </a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 min-w-0 py-6 px-4 md:px-8 pb-20">
+<!-- Breadcrumbs -->
+<nav class="flex items-center text-sm text-gray-500 mb-6 gap-2">
+<span>Resources</span>
+<span class="material-symbols-outlined !text-[14px]">chevron_right</span>
+<span class="text-gray-300">Envelopes</span>
+</nav>
+<!-- Endpoint Header -->
+<div class="flex flex-col gap-4 mb-8">
+<div class="flex flex-wrap items-center gap-3">
+<h1 class="text-3xl md:text-4xl font-bold text-white tracking-tight">Create Envelope</h1>
+<span class="hidden md:inline-flex size-2 bg-primary rounded-full animate-pulse"></span>
+</div>
+<div class="flex items-center gap-3 flex-wrap">
+<span class="inline-flex items-center justify-center px-3 py-1 rounded-md bg-primary/20 text-primary border border-primary/30 text-xs font-bold uppercase tracking-wide">
+                        POST
+                    </span>
+<code class="font-mono text-sm text-gray-300 bg-surface-dark px-3 py-1 rounded-md border border-white/10 select-all">/v2/envelopes</code>
+</div>
+<p class="text-gray-400 text-base leading-relaxed max-w-2xl">
+                    Creates a new signing envelope from a template. This endpoint initiates the document signing process and sends emails to all specified recipients.
+                </p>
+</div>
+<!-- Interactive Tabs -->
+<div class="border-b border-white/10 mb-6 overflow-x-auto no-scrollbar">
+<div class="flex gap-6 min-w-max">
+<button class="pb-3 text-sm font-medium text-primary border-b-2 border-primary transition-colors">
+                        Request Body
+                    </button>
+<button class="pb-3 text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                        Response
+                    </button>
+<button class="pb-3 text-sm font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+                        Playground
+                        <span class="material-symbols-outlined !text-[14px]">science</span>
+</button>
+</div>
+</div>
+<!-- Code Block Section -->
+<div class="relative group rounded-xl overflow-hidden border border-white/10 bg-[#0d0905] shadow-2xl mb-10">
+<!-- Toolbar -->
+<div class="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/5">
+<div class="flex gap-2">
+<span class="size-3 rounded-full bg-red-500/20 border border-red-500/50"></span>
+<span class="size-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"></span>
+<span class="size-3 rounded-full bg-green-500/20 border border-green-500/50"></span>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-xs font-mono text-gray-500">application/json</span>
+<button class="text-gray-400 hover:text-primary transition-colors flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+<span class="material-symbols-outlined !text-[16px]">content_copy</span>
+                            Copy
+                        </button>
+</div>
+</div>
+<!-- Code Content -->
+<div class="p-4 overflow-x-auto">
+<pre class="font-mono text-sm leading-6"><code class="language-json"><span class="text-gray-500">{</span>
+  <span class="text-primary">"template_id"</span><span class="text-gray-400">:</span> <span class="text-green-400">"tpl_839201_abc"</span><span class="text-gray-500">,</span>
+  <span class="text-primary">"subject"</span><span class="text-gray-400">:</span> <span class="text-green-400">"Please sign the NDA"</span><span class="text-gray-500">,</span>
+  <span class="text-primary">"message"</span><span class="text-gray-400">:</span> <span class="text-green-400">"Kindly review and sign the attached document."</span><span class="text-gray-500">,</span>
+  <span class="text-primary">"signers"</span><span class="text-gray-400">:</span> <span class="text-gray-500">[</span>
+    <span class="text-gray-500">{</span>
+      <span class="text-primary">"role"</span><span class="text-gray-400">:</span> <span class="text-green-400">"Client"</span><span class="text-gray-500">,</span>
+      <span class="text-primary">"name"</span><span class="text-gray-400">:</span> <span class="text-green-400">"Alice Smith"</span><span class="text-gray-500">,</span>
+      <span class="text-primary">"email"</span><span class="text-gray-400">:</span> <span class="text-green-400">"alice@example.com"</span>
+    <span class="text-gray-500">}</span>
+  <span class="text-gray-500">],</span>
+  <span class="text-primary">"sandbox_mode"</span><span class="text-gray-400">:</span> <span class="text-orange-400">true</span>
+<span class="text-gray-500">}</span></code></pre>
+</div>
+</div>
+<!-- Parameters Table (Simplified for mobile) -->
+<div class="mb-10">
+<h3 class="text-lg font-bold text-white mb-4">Parameters</h3>
+<div class="space-y-4">
+<!-- Param Item -->
+<div class="border-b border-white/5 pb-4 last:border-0">
+<div class="flex items-baseline gap-3 mb-1">
+<span class="font-mono text-sm text-primary font-medium">template_id</span>
+<span class="text-xs text-red-400 border border-red-400/20 bg-red-400/10 px-1.5 py-0.5 rounded">Required</span>
+<span class="text-xs text-gray-500">string</span>
+</div>
+<p class="text-sm text-gray-400">The unique identifier of the template to use.</p>
+</div>
+<!-- Param Item -->
+<div class="border-b border-white/5 pb-4 last:border-0">
+<div class="flex items-baseline gap-3 mb-1">
+<span class="font-mono text-sm text-primary font-medium">signers</span>
+<span class="text-xs text-red-400 border border-red-400/20 bg-red-400/10 px-1.5 py-0.5 rounded">Required</span>
+<span class="text-xs text-gray-500">array</span>
+</div>
+<p class="text-sm text-gray-400">List of recipients who need to sign.</p>
+</div>
+</div>
+</div>
+<!-- Error Handling Accordions -->
+<div>
+<h3 class="text-lg font-bold text-white mb-4">Error Codes</h3>
+<div class="space-y-2">
+<!-- 400 Bad Request -->
+<details class="group bg-surface-dark border border-white/5 rounded-lg open:border-primary/30 transition-all duration-300">
+<summary class="flex items-center justify-between p-4 cursor-pointer list-none">
+<div class="flex items-center gap-3">
+<span class="flex items-center justify-center size-8 rounded-full bg-red-500/10 text-red-400 font-bold text-xs border border-red-500/20">400</span>
+<span class="font-medium text-gray-200 text-sm">Bad Request</span>
+</div>
+<span class="material-symbols-outlined text-gray-500 group-open:rotate-180 transition-transform duration-300">expand_more</span>
+</summary>
+<div class="px-4 pb-4 pt-0 text-sm text-gray-400 border-t border-white/5 mt-2">
+<p class="pt-2">The request was unacceptable, often due to missing a required parameter.</p>
+<div class="mt-3 bg-[#0d0905] p-3 rounded border border-white/5">
+<code class="font-mono text-xs text-red-300">{"error": "missing_template_id"}</code>
+</div>
+</div>
+</details>
+<!-- 401 Unauthorized -->
+<details class="group bg-surface-dark border border-white/5 rounded-lg open:border-primary/30 transition-all duration-300">
+<summary class="flex items-center justify-between p-4 cursor-pointer list-none">
+<div class="flex items-center gap-3">
+<span class="flex items-center justify-center size-8 rounded-full bg-yellow-500/10 text-yellow-400 font-bold text-xs border border-yellow-500/20">401</span>
+<span class="font-medium text-gray-200 text-sm">Unauthorized</span>
+</div>
+<span class="material-symbols-outlined text-gray-500 group-open:rotate-180 transition-transform duration-300">expand_more</span>
+</summary>
+<div class="px-4 pb-4 pt-0 text-sm text-gray-400 border-t border-white/5 mt-2">
+<p class="pt-2">No valid API key provided.</p>
+</div>
+</details>
+</div>
+</div>
+</main>
+</div>
+</body></html>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { generatePDF } from '../utils/pdfGenerator';
 
 const VerificationResult = ({ result, error }) => {
   if (error) {
@@ -14,6 +15,10 @@ const VerificationResult = ({ result, error }) => {
   }
 
   const { ocr_results, face_analysis } = result;
+
+  const handleDownload = () => {
+    generatePDF(result);
+  };
 
   return (
     <div className="card mt-4">
@@ -38,6 +43,10 @@ const VerificationResult = ({ result, error }) => {
             )}
           </div>
         )}
+
+        <button className="btn btn-primary mt-3" onClick={handleDownload}>
+          Download PDF
+        </button>
       </div>
     </div>
   );

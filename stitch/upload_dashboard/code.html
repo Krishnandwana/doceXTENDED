@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DocVerify Dashboard</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ff791a",
+                        "background-light": "#f8f7f5",
+                        "background-dark": "#0f0f0f", /* Adjusted to matte black per request */
+                        "surface-dark": "#18181b",
+                        "sidebar-dark": "#0a0a0a",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                    animation: {
+                        'scan': 'scan 3s ease-in-out infinite alternate',
+                        'spin-slow': 'spin 8s linear infinite',
+                        'pulse-glow': 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        scan: {
+                            '0%': { top: '0%', opacity: '0.5' },
+                            '100%': { top: '100%', opacity: '1' },
+                        },
+                        'pulse-glow': {
+                            '0%, 100%': { opacity: '1', boxShadow: '0 0 15px rgba(255, 121, 26, 0.5)' },
+                            '50%': { opacity: '.8', boxShadow: '0 0 5px rgba(255, 121, 26, 0.1)' },
+                        }
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom Styles for 3D effect simulation */
+        .perspective-container {
+            perspective: 1000px;
+        }
+        .rotate-3d-doc {
+            transform-style: preserve-3d;
+            animation: rotate3d 8s infinite linear;
+        }
+        @keyframes rotate3d {
+            0% { transform: rotateY(0deg) rotateX(10deg); }
+            50% { transform: rotateY(180deg) rotateX(-10deg); }
+            100% { transform: rotateY(360deg) rotateX(10deg); }
+        }
+        .scan-beam {
+            background: linear-gradient(to bottom, transparent, rgba(255, 121, 26, 0.5));
+            border-bottom: 2px solid #ff791a;
+            box-shadow: 0 0 15px #ff791a;
+        }
+        /* Hide scrollbar for cleaner UI */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-gray-900 dark:text-white antialiased selection:bg-primary selection:text-white overflow-hidden">
+<div class="flex h-screen w-full flex-col md:flex-row relative">
+<!-- Sidebar (Desktop/Tablet: Permanent, Mobile: Hidden/Drawer style logic simulated here as a narrow strip) -->
+<aside class="hidden md:flex w-20 flex-col items-center bg-sidebar-dark border-r border-white/5 py-6 z-20">
+<div class="mb-8 text-primary">
+<span class="material-symbols-outlined !text-4xl">security</span>
+</div>
+<nav class="flex flex-1 flex-col gap-6 w-full">
+<!-- Active Item -->
+<button class="group relative flex h-12 w-full items-center justify-center">
+<div class="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-primary shadow-[0_0_10px_#ff791a]"></div>
+<span class="material-symbols-outlined text-primary" title="Dashboard">dashboard</span>
+</button>
+<button class="group relative flex h-12 w-full items-center justify-center text-gray-500 hover:text-white transition-colors">
+<span class="material-symbols-outlined" title="Archive">folder_open</span>
+</button>
+<button class="group relative flex h-12 w-full items-center justify-center text-gray-500 hover:text-white transition-colors">
+<span class="material-symbols-outlined" title="Analytics">analytics</span>
+</button>
+<button class="group relative flex h-12 w-full items-center justify-center text-gray-500 hover:text-white transition-colors">
+<span class="material-symbols-outlined" title="API Keys">key</span>
+</button>
+</nav>
+<div class="mt-auto flex flex-col gap-6">
+<button class="group relative flex h-12 w-full items-center justify-center text-gray-500 hover:text-white transition-colors">
+<span class="material-symbols-outlined" title="Settings">settings</span>
+</button>
+<div class="h-10 w-10 overflow-hidden rounded-full border border-white/10">
+<img alt="User Profile" class="h-full w-full object-cover" data-alt="User profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNmUE5KZoki_Bxw1yHWBq_BrhPWvXMi20p7DX6SQkwehumpqKq4vWZ6NfYK_igNTSSvrA_sQyRFZa0RFMQztTOpVPM1W071TY1V1EseOk4BA_66mGdg5zlFeb1d_3pwkTNE35STADfo8XnfLVdm-HS-L3wG2SAwpvMvaN7kVE7o7IOMVwRTJVlR2zr8hPiSuMH3bjppPIObmd44jfd08jF_ZQp0t9B6w5WLefWZEVPVG0X-yANbs0jJQ8nKv3mLVnCYtzpgntev8E"/>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col h-full relative overflow-hidden">
+<!-- Mobile Header -->
+<header class="flex items-center justify-between p-4 md:px-8 border-b border-white/5 bg-background-dark/80 backdrop-blur-md z-10 sticky top-0">
+<div class="flex items-center gap-3">
+<button class="md:hidden text-white/80 hover:text-white">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary md:hidden">security</span>
+<h1 class="text-xl font-bold tracking-tight text-white">DocVerify</h1>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="relative text-white/60 hover:text-white transition-colors">
+<span class="absolute -right-1 -top-1 flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-8 w-8 md:hidden overflow-hidden rounded-full border border-white/10">
+<img alt="User Profile" class="h-full w-full object-cover" data-alt="User profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKpel6Ujw2vWHyGQc9LNmUyJnKk6dACrfR6nvT9kYif_Bsf3KjgZYQic5pdS6VY7kUVuTbnq0fpqqxSCnnEb-TSNBif_JkcVu49B9dnWOOtjK9Lt3lVvq8UXZy-H9qQ1unvo_Sb7PtnL-c5dTK0AgWYMeSCbAd5Sb-dHkZddauLjPphrsr7mYN2EZm7vjV081vtcqLJJBtjxYPNuSbeeu9l9LCtYex-debLUmODjzb8z7rfI2_ipkNU3kGvSA8J2z7M8QjTW1xCGo"/>
+</div>
+</div>
+</header>
+<!-- Scrollable Content Area -->
+<div class="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar p-4 pb-24 md:p-8">
+<div class="mx-auto max-w-2xl flex flex-col gap-6">
+<!-- Upload Dropzone -->
+<section class="group relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/10 bg-surface-dark/50 px-6 py-10 text-center transition-all duration-300 hover:border-primary/50 hover:bg-surface-dark hover:shadow-[0_0_20px_rgba(255,121,26,0.1)]">
+<div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/5 text-primary shadow-[0_0_15px_rgba(255,121,26,0.1)] transition-transform duration-300 group-hover:scale-110 group-hover:shadow-[0_0_25px_rgba(255,121,26,0.3)]">
+<span class="material-symbols-outlined text-4xl">cloud_upload</span>
+</div>
+<h2 class="text-lg font-bold text-white mb-1">Secure Verification</h2>
+<p class="text-sm text-gray-400 max-w-xs mx-auto mb-6">Drag and drop your forensic documents here, or tap to browse securely.</p>
+<button class="bg-primary hover:bg-orange-600 text-white font-bold py-2.5 px-6 rounded-lg text-sm transition-all shadow-[0_4px_14px_rgba(255,121,26,0.4)] hover:shadow-[0_6px_20px_rgba(255,121,26,0.6)] flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">folder_open</span>
+                            Select File
+                        </button>
+</section>
+<!-- Active Processing Card (3D Visual) -->
+<section class="relative overflow-hidden rounded-xl border border-white/10 bg-surface-dark shadow-xl">
+<!-- Header -->
+<div class="flex items-center justify-between border-b border-white/5 bg-white/5 px-4 py-3">
+<div class="flex items-center gap-2">
+<span class="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-xs font-bold uppercase tracking-wider text-primary">Analysis in Progress</span>
+</div>
+<span class="text-xs font-mono text-gray-500">ID: #8839-XJ</span>
+</div>
+<!-- 3D Visualization Area -->
+<div class="relative h-64 w-full bg-black/40 flex items-center justify-center perspective-container">
+<!-- Background Grid -->
+<div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
+<div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at center, #ff791a 1px, transparent 1px); background-size: 24px 24px;"></div>
+<!-- 3D Wireframe Document Simulation -->
+<div class="rotate-3d-doc relative h-32 w-24 border border-primary/40 bg-primary/5 backdrop-blur-sm shadow-[0_0_30px_rgba(255,121,26,0.2)]">
+<!-- Document Lines -->
+<div class="absolute top-4 left-3 right-3 h-1 bg-primary/30 rounded-full"></div>
+<div class="absolute top-7 left-3 right-8 h-1 bg-primary/30 rounded-full"></div>
+<div class="absolute top-10 left-3 right-3 h-1 bg-primary/30 rounded-full"></div>
+<div class="absolute top-13 left-3 right-5 h-1 bg-primary/30 rounded-full"></div>
+<!-- Corner Accents -->
+<div class="absolute -top-1 -left-1 h-3 w-3 border-l-2 border-t-2 border-primary"></div>
+<div class="absolute -bottom-1 -right-1 h-3 w-3 border-r-2 border-b-2 border-primary"></div>
+<div class="absolute -top-1 -right-1 h-3 w-3 border-r-2 border-t-2 border-primary"></div>
+<div class="absolute -bottom-1 -left-1 h-3 w-3 border-l-2 border-b-2 border-primary"></div>
+</div>
+<!-- Scanning Beam -->
+<div class="absolute w-full h-1/3 left-0 animate-scan scan-beam z-10 pointer-events-none"></div>
+</div>
+<!-- Footer Info -->
+<div class="px-4 py-3 flex items-center justify-between bg-surface-dark">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-white">contract_v2_final.pdf</span>
+<span class="text-xs text-gray-500">2.4 MB • Scanning layers...</span>
+</div>
+<div class="text-primary font-mono text-sm font-bold">78%</div>
+</div>
+</section>
+<!-- Recent Activity List -->
+<section>
+<h3 class="text-lg font-bold text-white mb-4">Recent Activity</h3>
+<div class="flex flex-col gap-3">
+<!-- List Item 1: Verified -->
+<div class="group flex items-center gap-4 rounded-lg border border-white/5 bg-surface-dark p-3 transition-colors hover:border-white/10 hover:bg-white/5">
+<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-500">
+<span class="material-symbols-outlined text-[20px]">description</span>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="truncate text-sm font-bold text-white">passport_front.jpg</h4>
+<p class="text-xs text-gray-500">Uploaded 2 mins ago</p>
+</div>
+<div class="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary shadow-[0_0_10px_rgba(255,121,26,0.15)]">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+                                    Verified
+                                </div>
+</div>
+<!-- List Item 2: Processing (Lower stage) -->
+<div class="group flex items-center gap-4 rounded-lg border border-white/5 bg-surface-dark p-3 transition-colors hover:border-white/10 hover:bg-white/5">
+<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5 text-gray-400">
+<span class="material-symbols-outlined text-[20px]">image</span>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="truncate text-sm font-bold text-white">evidence_photo_04.png</h4>
+<p class="text-xs text-gray-500">Uploaded 1 hr ago</p>
+</div>
+<div class="flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs font-bold text-gray-400">
+<span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                                    Queued
+                                </div>
+</div>
+<!-- List Item 3: Verified -->
+<div class="group flex items-center gap-4 rounded-lg border border-white/5 bg-surface-dark p-3 transition-colors hover:border-white/10 hover:bg-white/5">
+<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+<span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="truncate text-sm font-bold text-white">financial_report_q3.pdf</h4>
+<p class="text-xs text-gray-500">Uploaded yesterday</p>
+</div>
+<div class="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary shadow-[0_0_10px_rgba(255,121,26,0.15)]">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+                                    Verified
+                                </div>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Floating Action Button for Mobile -->
+<button class="md:hidden absolute bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-white shadow-[0_4px_20px_rgba(255,121,26,0.5)] flex items-center justify-center z-30 hover:scale-105 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-2xl">add_a_photo</span>
+</button>
+</main>
+</div>
+</body></html>

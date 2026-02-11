@@ -1,21 +1,30 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Dashboard from './pages/Dashboard';
-import IDVerification from './pages/IDVerification';
-import DocumentVerification from './pages/DocumentVerification';
+import LandingPage from './pages/LandingPage';
+import NewDashboard from './pages/NewDashboard';
+import FaceMatching from './pages/FaceMatching';
+import ApiDocumentation from './pages/ApiDocumentation';
+import AIPipeline from './pages/AIPipeline';
+import IDVerificationWorking from './pages/IDVerificationWorking';
+import DocumentVerificationWorking from './pages/DocumentVerificationWorking';
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/id-verification" element={<IDVerification />} />
-          <Route path="/document-verification" element={<DocumentVerification />} />
-        </Routes>
-      </div>
+      <Routes>
+        {/* Main Routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/dashboard" element={<NewDashboard />} />
+        
+        {/* Working Verification Routes with Backend Integration */}
+        <Route path="/id-verification" element={<IDVerificationWorking />} />
+        <Route path="/document-verification" element={<DocumentVerificationWorking />} />
+        <Route path="/face-matching" element={<FaceMatching />} />
+        
+        {/* Info Pages */}
+        <Route path="/api-docs" element={<ApiDocumentation />} />
+        <Route path="/pipeline" element={<AIPipeline />} />
+      </Routes>
     </Router>
   );
 }

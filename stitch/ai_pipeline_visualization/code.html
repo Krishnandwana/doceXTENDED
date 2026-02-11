@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Pipeline Visualization</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ff791a",
+                        "background-light": "#f8f7f5",
+                        "background-dark": "#23170f",
+                        "dark-void": "#050505",
+                        "surface-dark": "#141414",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom Utilities for 3D-like effects and clean UI */
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        
+        .node-glow-active {
+            box-shadow: 0 0 20px rgba(255, 121, 26, 0.4);
+        }
+
+        .data-line-gradient {
+            stroke: url(#activeGradient);
+        }
+        
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display bg-dark-void text-white overflow-hidden h-screen w-full relative selection:bg-primary selection:text-white">
+<!-- Background Ambience -->
+<div class="absolute inset-0 z-0 pointer-events-none">
+<div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#1a100a] via-dark-void to-dark-void opacity-60"></div>
+<div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-primary/5 to-transparent opacity-30"></div>
+</div>
+<!-- Top Navigation / Status HUD -->
+<header class="absolute top-0 left-0 w-full z-30 p-4 pt-6 flex items-center justify-between bg-gradient-to-b from-dark-void/90 to-transparent">
+<button class="flex items-center justify-center size-10 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors backdrop-blur-sm">
+<span class="material-symbols-outlined text-xl">arrow_back</span>
+</button>
+<div class="flex flex-col items-center">
+<h1 class="text-sm font-bold tracking-wide text-white/90 uppercase">DocVerify Engine</h1>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+</span>
+<span class="text-[10px] font-medium text-green-400 tracking-wider">PIPELINE ACTIVE</span>
+</div>
+</div>
+<button class="flex items-center justify-center size-10 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors backdrop-blur-sm">
+<span class="material-symbols-outlined text-xl">settings</span>
+</button>
+</header>
+<!-- Main 3D Pipeline Visualization -->
+<main class="relative z-10 w-full h-full flex flex-col items-center justify-center pt-16 pb-32">
+<!-- Connecting Lines Layer (SVG) -->
+<div class="absolute inset-0 w-full h-full pointer-events-none flex justify-center">
+<svg class="max-w-md" height="100%" width="100%">
+<defs>
+<lineargradient id="activeGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#ff791a;stop-opacity:0"></stop>
+<stop offset="50%" style="stop-color:#ff791a;stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:#ff791a;stop-opacity:1"></stop>
+</lineargradient>
+<lineargradient id="fadeLine" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#333;stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:#333;stop-opacity:0.2"></stop>
+</lineargradient>
+</defs>
+<!-- Central Spine Line -->
+<!-- Adjusted coordinates to match flex gap layout approximately -->
+<path d="M 50% 15% L 50% 85%" fill="none" stroke="url(#fadeLine)" stroke-dasharray="4 4" stroke-width="2"></path>
+<!-- Active Data Flow (Animated-looking segment) -->
+<!-- Flowing from top to the active node (4th item) -->
+<path d="M 50% 15% L 50% 65%" fill="none" stroke="url(#activeGradient)" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+</div>
+<!-- Pipeline Nodes Container -->
+<div class="relative flex flex-col items-center gap-8 w-full max-w-xs">
+<!-- Node 1: Upload (Completed) -->
+<div class="group relative flex items-center justify-center">
+<div class="absolute -right-24 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+<!-- Tooltip placeholder -->
+</div>
+<div class="relative z-10 flex items-center gap-4 bg-surface-dark border border-white/10 px-5 py-3 rounded-xl backdrop-blur-md">
+<div class="flex items-center justify-center size-8 rounded-full bg-white/10 text-white/60">
+<span class="material-symbols-outlined text-lg">cloud_upload</span>
+</div>
+<span class="text-sm font-medium text-white/60">Upload</span>
+<span class="absolute -right-1 -top-1 size-3 bg-green-500 rounded-full border-2 border-dark-void"></span>
+</div>
+</div>
+<!-- Node 2: OCR (Completed) -->
+<div class="relative flex items-center justify-center">
+<div class="relative z-10 flex items-center gap-4 bg-surface-dark border border-white/10 px-5 py-3 rounded-xl backdrop-blur-md">
+<div class="flex items-center justify-center size-8 rounded-full bg-white/10 text-white/60">
+<span class="material-symbols-outlined text-lg">document_scanner</span>
+</div>
+<span class="text-sm font-medium text-white/60">OCR Processing</span>
+<span class="absolute -right-1 -top-1 size-3 bg-green-500 rounded-full border-2 border-dark-void"></span>
+</div>
+</div>
+<!-- Node 3: Face Detection (Completed) -->
+<div class="relative flex items-center justify-center">
+<div class="relative z-10 flex items-center gap-4 bg-surface-dark border border-white/10 px-5 py-3 rounded-xl backdrop-blur-md">
+<div class="flex items-center justify-center size-8 rounded-full bg-white/10 text-white/60">
+<span class="material-symbols-outlined text-lg">face</span>
+</div>
+<span class="text-sm font-medium text-white/60">Face Detection</span>
+<span class="absolute -right-1 -top-1 size-3 bg-green-500 rounded-full border-2 border-dark-void"></span>
+</div>
+</div>
+<!-- Node 4: Face Matching (ACTIVE) -->
+<div class="relative flex items-center justify-center scale-110 transition-transform">
+<!-- Data Pulse Ring -->
+<div class="absolute inset-0 rounded-xl border border-primary opacity-50 animate-ping"></div>
+<!-- Tooltip (Simulated ReactBits) -->
+<div class="absolute -right-32 top-1/2 -translate-y-1/2 bg-surface-dark/90 border border-white/10 p-2 rounded-lg backdrop-blur-xl shadow-xl flex flex-col z-20">
+<span class="text-[10px] text-white/50 uppercase tracking-wider">Confidence</span>
+<span class="text-sm font-bold text-primary">98.4%</span>
+</div>
+<!-- Active Node Body -->
+<div class="relative z-10 flex items-center gap-4 bg-[#1a120b] border-2 border-primary px-6 py-4 rounded-xl shadow-[0_0_30px_rgba(255,121,26,0.2)] node-glow-active">
+<div class="flex items-center justify-center size-10 rounded-full bg-primary text-white">
+<span class="material-symbols-outlined text-xl">how_to_reg</span>
+</div>
+<div class="flex flex-col">
+<span class="text-base font-bold text-white">Face Matching</span>
+<span class="text-xs text-primary font-medium animate-pulse">Processing...</span>
+</div>
+</div>
+</div>
+<!-- Node 5: Result (Pending) -->
+<div class="relative flex items-center justify-center opacity-50">
+<div class="relative z-10 flex items-center gap-4 bg-surface-dark border border-white/5 px-5 py-3 rounded-xl backdrop-blur-sm grayscale">
+<div class="flex items-center justify-center size-8 rounded-full bg-white/5 text-white/40">
+<span class="material-symbols-outlined text-lg">verified_user</span>
+</div>
+<span class="text-sm font-medium text-white/40">Verification Result</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Playback Controls -->
+<div class="absolute bottom-60 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 p-1.5 rounded-full glass-panel border border-white/10 shadow-lg">
+<button class="flex items-center justify-center size-10 rounded-full hover:bg-white/10 text-white transition-colors">
+<span class="material-symbols-outlined">restart_alt</span>
+</button>
+<button class="flex items-center justify-center size-12 rounded-full bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30 transition-all active:scale-95">
+<span class="material-symbols-outlined filled">pause</span>
+</button>
+<button class="flex items-center justify-center size-10 rounded-full hover:bg-white/10 text-white transition-colors">
+<span class="material-symbols-outlined">fast_forward</span>
+</button>
+</div>
+<!-- Detail Modal (Bottom Sheet - Slide Up State) -->
+<div class="absolute bottom-0 left-0 w-full z-40 flex flex-col justify-end">
+<!-- Backdrop Gradient for blending -->
+<div class="h-24 w-full bg-gradient-to-t from-black to-transparent pointer-events-none"></div>
+<div class="relative flex flex-col items-stretch bg-[#1a120b] border-t border-white/10 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] overflow-hidden">
+<!-- Glass effect overlay on bg -->
+<div class="absolute inset-0 bg-primary/5 pointer-events-none"></div>
+<!-- Drag Handle -->
+<button class="relative z-10 flex h-6 w-full items-center justify-center pt-4 pb-2 cursor-grab active:cursor-grabbing">
+<div class="h-1.5 w-12 rounded-full bg-white/20"></div>
+</button>
+<div class="relative z-10 flex-1 px-6 pb-8 pt-2">
+<div class="flex items-center justify-between mb-6">
+<div>
+<h2 class="text-white tracking-tight text-2xl font-bold leading-tight">Face Matching</h2>
+<p class="text-white/40 text-sm mt-1 font-mono">ID: proc_8291a_x99</p>
+</div>
+<!-- Thumbnail of Face -->
+<div class="size-12 rounded-lg bg-gray-800 border border-white/10 overflow-hidden relative">
+<!-- Abstract face placeholder using CSS -->
+<div class="absolute inset-0 bg-gradient-to-tr from-gray-700 to-gray-600"></div>
+<span class="material-symbols-outlined absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-3xl">face</span>
+<!-- Data Alt for Images -->
+<img alt="Face Thumbnail" class="absolute inset-0 w-full h-full opacity-0" data-alt="Thumbnail of the user's face being processed for matching" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4vIsfyY1FLjoM-NXx8q_qa8AGcGTsc303Iu3CUjbGcpxbvP1Vd2Z0wd3zP2rCm4FMDo6MxGZmulALQNlAZn38lH9ETQI9KHjsBjaxbEJbmix4ryCwpBdcz4WuFTbf1WZk8nicABXz6FSW88MtZWUQJLd-QW8Cb4AjTyTCctd50BmHXveFjSHOP4efTgGwAop8pLtf2VdgW3itaOlopOJkTI3Aoxe4Mw_A36w9Huji2iWS8bv19tNN4vTetUFc3L4LIyZbRuv5nto"/>
+</div>
+</div>
+<!-- Metrics Grid -->
+<div class="flex flex-wrap gap-4 mb-6">
+<div class="flex min-w-[140px] flex-1 flex-col gap-2 rounded-xl p-5 bg-white/5 border border-white/5 relative overflow-hidden group">
+<div class="absolute inset-0 bg-primary/10 scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-500"></div>
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-lg">percent</span>
+<p class="text-white/60 text-xs font-bold uppercase tracking-wider">Similarity</p>
+</div>
+<p class="text-white tracking-tight text-3xl font-bold leading-none">98.4<span class="text-lg text-white/40">%</span></p>
+</div>
+<div class="flex min-w-[140px] flex-1 flex-col gap-2 rounded-xl p-5 bg-white/5 border border-white/5 relative overflow-hidden group">
+<div class="absolute inset-0 bg-primary/10 scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-500 delay-75"></div>
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-lg">timer</span>
+<p class="text-white/60 text-xs font-bold uppercase tracking-wider">Latency</p>
+</div>
+<p class="text-white tracking-tight text-3xl font-bold leading-none">120<span class="text-lg text-white/40">ms</span></p>
+</div>
+</div>
+<!-- Code Snippet -->
+<div class="bg-black/40 rounded-lg border border-white/5 p-4 font-mono text-xs text-blue-300 overflow-x-auto">
+<div class="flex gap-2 mb-2 border-b border-white/5 pb-2">
+<span class="text-white/40">JSON Output</span>
+</div>
+<pre class="leading-relaxed"><span class="text-purple-400">"match_result"</span>: {
+  <span class="text-green-400">"verified"</span>: <span class="text-primary">true</span>,
+  <span class="text-green-400">"confidence"</span>: <span class="text-yellow-300">0.9842</span>,
+  <span class="text-green-400">"bbox"</span>: [<span class="text-orange-300">120</span>, <span class="text-orange-300">45</span>, <span class="text-orange-300">320</span>, <span class="text-orange-300">245</span>]
+}</pre>
+</div>
+<!-- Action Button -->
+<button class="mt-6 w-full flex items-center justify-center gap-2 rounded-xl h-12 bg-primary text-white font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
+<span>View Full Log</span>
+<span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</body></html>

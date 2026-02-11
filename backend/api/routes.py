@@ -340,6 +340,92 @@ async def delete_document(document_id: str):
         raise HTTPException(status_code=500, detail=f"Deletion failed: {str(e)}")
 
 
+@router.post("/api/documents/{document_id}/authenticity")
+async def check_document_authenticity(document_id: str):
+    """
+    Check if document is authentic (not AI-generated or tampered)
+    
+    - **document_id**: ID of the uploaded document
+    """
+    try:
+        # Get document file info
+        if document_id not in uploaded_files:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        file_info = uploaded_files[document_id]
+        file_path = file_info['file_path']
+        
+        # Use Gemini service for authenticity check
+        from ..services.gemini_ocr_service import get_gemini_service
+        gemini = get_gemini_service()
+        
+        # Check if AI-generated
+        ai_check = gemini.check_image_authenticity(file_path)
+        
+        # Return combined result
+        if ai_check.get('success'):
+            authenticity_data = ai_check.get('authenticity', {})
+            return {
+                'success': True,
+                'document_id': document_id,
+                'is_authentic': not authenticity_data.get('is_ai_generated', False),
+                'is_ai_generated': authenticity_data.get('is_ai_generated', False),
+                'confidence_score': authenticity_data.get('confidence_score', 0),
+                'explanation': authenticity_data.get('explanation', ''),
+                'timestamp': datetime.now().isoformat()
+            }
+        else:
+            return {
+                'success': False,
+                'error': ai_check.get('error', 'Authenticity check failed'),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authenticity check failed: {str(e)}")
+
+
+@router.post("/api/documents/{document_id}/validate-authenticity")
+async def validate_document_authenticity(document_id: str, document_type: str):
+    """
+    Validate document authenticity and quality using Gemini AI
+    
+    - **document_id**: ID of the uploaded document
+    - **document_type**: Type of document for validation
+    """
+    try:
+        # Get document file info
+        if document_id not in uploaded_files:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        file_info = uploaded_files[document_id]
+        file_path = file_info['file_path']
+        
+        # Use Gemini service for validation
+        from ..services.gemini_ocr_service import get_gemini_service
+        gemini = get_gemini_service()
+        
+        validation_result = gemini.validate_document(file_path, document_type)
+        
+        if validation_result.get('success'):
+            validation_data = validation_result.get('validation', {})
+            return {
+                'success': True,
+                'document_id': document_id,
+                'validation': validation_data,
+                'timestamp': datetime.now().isoformat()
+            }
+        else:
+            return {
+                'success': False,
+                'error': validation_result.get('error', 'Validation failed'),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+
 @router.get("/api/health", response_model=HealthResponse)
 async def health_check():
     """Check API and service health status"""
