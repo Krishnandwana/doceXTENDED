@@ -14,7 +14,6 @@ const FaceMatching = () => {
   const [sourceImage, setSourceImage] = useState(null);
   const [sourcePreview, setSourcePreview] = useState(null);
   const [liveImage, setLiveImage] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);

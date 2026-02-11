@@ -2,9 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Sphere, Text } from '@react-three/drei';
+import { OrbitControls, Box, Sphere } from '@react-three/drei';
 import { motion } from 'framer-motion';
-import * as THREE from 'three';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -74,13 +73,12 @@ const DocumentVerificationWorking = () => {
   const navigate = useNavigate();
   const [documentFile, setDocumentFile] = useState(null);
   const [documentPreview, setDocumentPreview] = useState(null);
-  const [documentType, setDocumentType] = useState('id_card');
+  const documentType = 'id_card';
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [step, setStep] = useState('upload'); // upload, processing, result
-  const [authenticity, setAuthenticity] = useState(null);
   const [processingStage, setProcessingStage] = useState('');
 
   // Handle file selection
@@ -131,7 +129,6 @@ const DocumentVerificationWorking = () => {
     setIsProcessing(true);
     setProgress(0);
     setError(null);
-    setAuthenticity(null);
 
     try {
       // Step 1: Upload document
@@ -156,7 +153,6 @@ const DocumentVerificationWorking = () => {
         `${API_BASE_URL}/api/documents/${documentId}/authenticity`
       );
       
-      setAuthenticity(authenticityResponse.data);
       setProgress(35);
 
       // Step 3: Validate document quality

@@ -3,13 +3,12 @@ import { useNavigate } from 'react-router-dom';
 
 const NewDashboard = () => {
   const navigate = useNavigate();
-  const [selectedFile, setSelectedFile] = useState(null);
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (file) {
-      setSelectedFile(file);
       // Handle file upload logic here
+      console.log('File selected:', file.name);
     }
   };
 

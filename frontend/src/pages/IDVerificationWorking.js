@@ -42,11 +42,9 @@ const IDVerificationPage = () => {
   const [documentFile, setDocumentFile] = useState(null);
   const [documentPreview, setDocumentPreview] = useState(null);
   const [selfieImage, setSelfieImage] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [documentId, setDocumentId] = useState(null);
   const [cameraError, setCameraError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
 
