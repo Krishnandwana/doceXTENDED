@@ -64,7 +64,6 @@ const FaceMatching = () => {
     }
     
     setStep('processing');
-    setIsProcessing(true);
     setError(null);
     
     try {
@@ -89,11 +88,9 @@ const FaceMatching = () => {
       
       setResult(matchResponse.data);
       setStep('result');
-      setIsProcessing(false);
     } catch (err) {
       console.error('Matching error:', err);
       setError(err.response?.data?.detail || err.message || 'Matching failed');
-      setIsProcessing(false);
       setStep('upload');
     }
   };

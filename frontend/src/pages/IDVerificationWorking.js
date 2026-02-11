@@ -123,7 +123,6 @@ const IDVerificationPage = () => {
       });
 
       const docId = uploadResponse.data.document_id;
-      setDocumentId(docId);
       setProgress(40);
 
       // Step 2: Process document
