@@ -12,7 +12,8 @@ from pathlib import Path
 from .gemini_ocr_service import get_gemini_service
 # from .paddle_ocr_service import get_paddle_service
 from .document_parser import get_document_parser
-from .face_detection_service import get_face_service
+# Temporarily disabled to avoid heavy dependencies
+# from .face_detection_service import get_face_service
 
 
 class DocumentProcessor:
@@ -23,7 +24,9 @@ class DocumentProcessor:
         self.gemini_service = get_gemini_service()
         # self.paddle_service = get_paddle_service()
         self.parser = get_document_parser()
-        self.face_service = get_face_service()
+        # Temporarily disabled to avoid heavy dependencies
+        # self.face_service = get_face_service()
+        self.face_service = None
 
     def process_document(
         self,
@@ -94,7 +97,27 @@ class DocumentProcessor:
                         result['gemini_validation'] = gemini_validation
 
                 else:
-                    result['errors'].append(f"Gemini OCR failed: {ocr_result.get('error', 'Unknown error')}")
+                    error_msg = ocr_result.get('error', 'Unknown error')
+                    result['errors'].append(f"Gemini OCR failed: {error_msg}")
+                    
+                    # If Gemini quota exceeded, use mock data for testing
+                    if 'quota' in error_msg.lower() or '429' in error_msg:
+                        result['warnings'].append("⚠️ Gemini API quota exceeded - Using mock data for testing")
+                        result['parsed_data'] = {
+                            'full_name': '[MOCK DATA - Gemini API Quota Exceeded]',
+                            'document_number': 'XXXX-XXXX-XXXX',
+                            'date_of_birth': 'DD/MM/YYYY',
+                            'address': 'Mock Address for Testing',
+                            'note': 'This is mock data because Gemini API quota is exceeded. Get a new API key at https://ai.google.dev/'
+                        }
+                        result['ocr_result'] = {
+                            'method': 'mock',
+                            'raw_response': 'Mock data - Gemini quota exceeded',
+                            'success': True
+                        }
+                        # Continue processing instead of failing
+                    elif not result['parsed_data']:
+                        result['warnings'].append("Using fallback processing due to Gemini error")
                     # result['warnings'].append("Falling back to PaddleOCR")
                     # use_gemini = False
 
@@ -137,7 +160,7 @@ class DocumentProcessor:
                 result['errors'].append("No data could be extracted from document")
 
             # Step 4: Face Detection (only for ID documents)
-            if detect_face and document_type != 'bill':
+            if detect_face and document_type != 'bill' and self.face_service:
                 face_result = self.face_service.detect_faces(image_path)
 
                 if face_result['success']:
@@ -158,6 +181,8 @@ class DocumentProcessor:
                         result['face_detection']['liveness'] = liveness_result
                 else:
                     result['warnings'].append(f"Face detection failed: {face_result.get('error', 'Unknown error')}")
+            elif detect_face and document_type != 'bill' and not self.face_service:
+                result['warnings'].append("Face detection service not available")
 
             # Step 5: Determine Overall Status
             if result['errors']:
@@ -191,6 +216,12 @@ class DocumentProcessor:
             Dictionary containing verification results
         """
         try:
+            if not self.face_service:
+                return {
+                    'success': False,
+                    'error': 'Face detection service not available'
+                }
+                
             # Compare faces
             comparison = self.face_service.compare_faces(
                 document_image_path,

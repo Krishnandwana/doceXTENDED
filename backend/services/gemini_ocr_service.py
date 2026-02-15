@@ -23,7 +23,25 @@ class GeminiOCRService:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
 
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        # Use the latest flash model
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
+    
+    def _safe_generate(self, prompt: str, image):
+        """
+        Safely call Gemini API with quota error handling
+        
+        Returns:
+            tuple: (success: bool, response_text: str or None, error: str or None)
+        """
+        try:
+            response = self.model.generate_content([prompt, image])
+            return (True, response.text, None)
+        except Exception as e:
+            error_msg = str(e)
+            if '429' in error_msg or 'quota' in error_msg.lower():
+                return (False, None, 'Gemini API quota exceeded. Please check your billing at https://ai.dev/rate-limit')
+            else:
+                return (False, None, f'Gemini API error: {error_msg}')
 
     def extract_text(self, image_path: str) -> Dict[str, Any]:
         """
@@ -50,15 +68,24 @@ class GeminiOCRService:
             Return the response in a clear format.
             """
 
-            # Generate response
-            response = self.model.generate_content([prompt, image])
-
-            return {
-                'success': True,
-                'raw_text': response.text,
-                'method': 'gemini',
-                'confidence': 0.95  # Gemini typically has high confidence
-            }
+            # Generate response with error handling
+            success, raw_text, error = self._safe_generate(prompt, image)
+            
+            if success:
+                return {
+                    'success': True,
+                    'raw_text': raw_text,
+                    'method': 'gemini',
+                    'confidence': 0.95
+                }
+            else:
+                return {
+                    'success': False,
+                    'method': 'gemini',
+                    'error': error or 'Unknown error',
+                    'raw_text': '',
+                    'note': 'Gemini API unavailable'
+                }
 
         except Exception as e:
             return {
@@ -164,11 +191,20 @@ class GeminiOCRService:
 
             prompt = prompts.get(document_type, prompts['aadhaar'])
 
-            # Generate response
-            response = self.model.generate_content([prompt, image])
+            # Generate response using safe helper
+            success, response_text, error = self._safe_generate(prompt, image)
+            
+            if not success:
+                return {
+                    'success': False,
+                    'document_type': document_type,
+                    'error': error,
+                    'parsed_data': {},
+                    'method': 'gemini'
+                }
 
             # Parse JSON from response
-            response_text = response.text.strip()
+            response_text = response_text.strip()
 
             # Extract JSON from markdown code blocks if present
             if '```json' in response_text:

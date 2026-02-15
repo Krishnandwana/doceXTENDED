@@ -1,10 +1,11 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import axios from 'axios';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Box, Sphere } from '@react-three/drei';
 import { motion } from 'framer-motion';
+import { loadFaceApiModels, compareFaces } from '../utils/faceApiHelper';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -42,11 +43,59 @@ const IDVerificationPage = () => {
   const [documentFile, setDocumentFile] = useState(null);
   const [documentPreview, setDocumentPreview] = useState(null);
   const [selfieImage, setSelfieImage] = useState(null);
+  const [documentType, setDocumentType] = useState('pan');
+  const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [cameraError, setCameraError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [processingStage, setProcessingStage] = useState('');
+
+  // Load face-api models on mount
+  useEffect(() => {
+    let cancelled = false;
+    
+    const loadModels = async () => {
+      try {
+        console.log('Starting to load face-api.js models...');
+        const loaded = await loadFaceApiModels();
+        if (!cancelled) {
+          setModelsLoaded(loaded);
+          if (loaded) {
+            console.log('✅ Face detection models loaded successfully!');
+          } else {
+            console.warn('⚠️ Face detection models not loaded - face matching may not work');
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('❌ Failed to load face models:', err);
+        }
+      }
+    };
+    
+    loadModels();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Helper to safely extract error message
+  const getErrorMessage = (error) => {
+    if (typeof error === 'string') return error;
+    if (error?.message) return error.message;
+    if (error?.detail) {
+      if (typeof error.detail === 'string') return error.detail;
+      if (Array.isArray(error.detail)) {
+        return error.detail.map(e => e.msg || JSON.stringify(e)).join(', ');
+      }
+      return JSON.stringify(error.detail);
+    }
+    return 'An error occurred';
+  };
 
   // Handle document upload
   const handleDocumentUpload = (event) => {
@@ -113,72 +162,121 @@ const IDVerificationPage = () => {
     setError(null);
 
     try {
+      console.log('Starting verification process...');
+      
       // Step 1: Upload document
       setProgress(20);
+      setProcessingStage('Uploading document...');
+      console.log('Uploading document...');
+      
       const formData = new FormData();
       formData.append('file', documentFile);
 
       const uploadResponse = await axios.post(`${API_BASE_URL}/api/documents/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 15000
       });
 
+      console.log('Upload response:', uploadResponse.data);
       const docId = uploadResponse.data.document_id;
       setProgress(40);
 
       // Step 2: Process document
-      const processResponse = await axios.post(`${API_BASE_URL}/api/documents/${docId}/process`, {
-        document_type: 'id_card',
+      setProcessingStage('Processing document...');
+      console.log('Processing document...');
+      
+      const processResponse = await axios.post(`${API_BASE_URL}/api/documents/process`, {
+        document_id: docId,
+        document_type: documentType,
         use_gemini: true
-      });
+      }, { timeout: 30000 });
+
+      console.log('Process response:', processResponse.data);
 
       const jobId = processResponse.data.job_id;
       setProgress(60);
 
-      // Step 3: Poll for results
+      // Step 3: Poll for document processing results
+      setProcessingStage('Extracting document data...');
       let attempts = 0;
       const maxAttempts = 30;
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
-          const statusResponse = await axios.get(`${API_BASE_URL}/api/processing/${jobId}/status`);
+          const statusResponse = await axios.get(`${API_BASE_URL}/api/documents/status/${jobId}`);
           const status = statusResponse.data;
 
           if (status.status === 'completed') {
             clearInterval(pollInterval);
+            setProgress(70);
+
+            // Get processed document results
+            const resultsResponse = await axios.get(`${API_BASE_URL}/api/documents/results/${docId}`);
             setProgress(80);
 
-            // Step 4: Upload selfie and match faces
-            const selfieBlob = await fetch(selfieImage).then(r => r.blob());
-            const selfieFormData = new FormData();
-            selfieFormData.append('file', selfieBlob, 'selfie.jpg');
+            // Step 4: Client-side face matching using face-api.js
+            setProcessingStage('Detecting faces...');
+            setProgress(85);
 
-            const selfieUploadResponse = await axios.post(`${API_BASE_URL}/api/documents/upload`, selfieFormData, {
-              headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            try {
+              // Compare faces using face-api.js (runs in browser)
+              const faceMatchResult = await compareFaces(selfieImage, documentPreview);
+              setProgress(95);
 
-            const selfieId = selfieUploadResponse.data.document_id;
-            setProgress(90);
-
-            // Step 5: Match faces
-            const matchResponse = await axios.post(`${API_BASE_URL}/api/face/match`, {
-              document_id: docId,
-              selfie_id: selfieId
-            });
-
-            setProgress(100);
-            setResult({
-              documentData: status.result,
-              faceMatch: matchResponse.data
-            });
-            setStep('result');
-            setIsProcessing(false);
+              setProcessingStage('Matching biometric features...');
+              
+              // Combine results
+              setProgress(100);
+              setResult({
+                documentData: resultsResponse.data,
+                faceMatch: {
+                  matched: faceMatchResult.match,
+                  confidence: faceMatchResult.confidence,
+                  distance: faceMatchResult.distance,
+                  method: 'face-api.js (client-side)',
+                  facesDetected: faceMatchResult.facesDetected,
+                  error: faceMatchResult.error
+                }
+              });
+              setStep('result');
+              setIsProcessing(false);
+              setProcessingStage('');
+            } catch (faceErr) {
+              console.error('Face matching error:', faceErr);
+              // Still show results but indicate face match failed
+              setResult({
+                documentData: resultsResponse.data,
+                faceMatch: {
+                  matched: false,
+                  confidence: 0,
+                  error: faceErr.message || 'Face matching failed'
+                }
+              });
+              setStep('result');
+              setIsProcessing(false);
+              setProcessingStage('');
+            }
 
           } else if (status.status === 'failed') {
             clearInterval(pollInterval);
-            throw new Error(status.message || 'Processing failed');
+            const errorMsg = status.message || 'Processing failed - see backend logs';
+            throw new Error(errorMsg);
           } else if (attempts >= maxAttempts) {
             clearInterval(pollInterval);
-            throw new Error('Processing timeout');
+            // Try to get final status
+            try {
+              const finalStatus = await axios.get(`${API_BASE_URL}/api/documents/status/${jobId}`);
+              if (finalStatus.data.status === 'failed') {
+                throw new Error(finalStatus.data.message || 'Processing failed');
+              }
+            } catch (finalErr) {
+              console.error('Final status check error:', finalErr);
+            }
+            throw new Error('Processing timeout after 60 seconds. The API may be overloaded. Please try again.');
+          } else {
+            // Update progress during polling
+            const baseProgress = 60 + (attempts * 0.5);
+            setProgress(Math.min(baseProgress, 70));
           }
         } catch (err) {
           clearInterval(pollInterval);
@@ -188,9 +286,26 @@ const IDVerificationPage = () => {
 
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.response?.data?.detail || err.message || 'Verification failed');
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        code: err.code
+      });
+      
+      let errorMsg;
+      if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+        errorMsg = '🔴 Cannot connect to backend server. Please ensure:\n1. Backend is running (python run_backend.py)\n2. Backend is accessible at http://localhost:8000\n3. No firewall is blocking the connection';
+      } else if (err.code === 'ECONNABORTED') {
+        errorMsg = 'Request timeout. The server took too long to respond.';
+      } else {
+        errorMsg = err.response?.data ? getErrorMessage(err.response.data) : (err.message || 'Verification failed');
+      }
+      
+      setError(errorMsg);
       setIsProcessing(false);
       setStep('upload');
+      setProcessingStage('');
     }
   };
 
@@ -278,6 +393,25 @@ const IDVerificationPage = () => {
                       <span className="material-symbols-outlined">close</span>
                     </button>
                   </div>
+                  
+                  {/* Document Type Selector */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300">
+                      Document Type
+                    </label>
+                    <select
+                      value={documentType}
+                      onChange={(e) => setDocumentType(e.target.value)}
+                      className="w-full bg-surface-dark border border-white/10 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    >
+                      <option value="aadhaar">Aadhaar Card</option>
+                      <option value="pan">PAN Card</option>
+                      <option value="driving_license">Driving License</option>
+                      <option value="passport">Passport</option>
+                      <option value="voter_id">Voter ID</option>
+                    </select>
+                  </div>
+                  
                   <button
                     onClick={proceedToCapture}
                     className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2"
@@ -417,10 +551,16 @@ const IDVerificationPage = () => {
                 </div>
               </div>
 
-              <div className="text-center text-sm text-gray-400">
-                <p>Extracting document data...</p>
-                <p>Detecting faces...</p>
-                <p>Matching biometric features...</p>
+              <div className="text-center text-sm space-y-1">
+                {processingStage ? (
+                  <p className="text-primary font-medium">{processingStage}</p>
+                ) : (
+                  <>
+                    <p className="text-gray-400">Extracting document data...</p>
+                    <p className="text-gray-400">Detecting faces...</p>
+                    <p className="text-gray-400">Matching biometric features...</p>
+                  </>
+                )}
               </div>
             </motion.div>
           )}

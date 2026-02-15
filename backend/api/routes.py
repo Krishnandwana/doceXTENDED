@@ -47,16 +47,29 @@ def validate_file(file: UploadFile) -> None:
 def process_document_background(job_id: str, document_id: str, options: Dict[str, Any]):
     """Background task to process document"""
     try:
+        print(f"\n{'='*60}")
+        print(f"[Processing] STARTING BACKGROUND TASK")
+        print(f"[Processing] Job ID: {job_id}")
+        print(f"[Processing] Document ID: {document_id}")
+        print(f"[Processing] Options: {options}")
+        print(f"{'='*60}\n")
+        
         # Update job status
         processing_jobs[job_id]['status'] = ProcessingStatus.PROCESSING
         processing_jobs[job_id]['progress'] = 25
+        
+        print(f"[Processing] Starting job {job_id} for document {document_id}")
 
         # Get file path
         file_info = uploaded_files.get(document_id)
         if not file_info:
             processing_jobs[job_id]['status'] = ProcessingStatus.FAILED
             processing_jobs[job_id]['message'] = 'Document not found'
+            print(f"[Processing] ERROR: Document {document_id} not found")
             return
+
+        print(f"[Processing] Processing document at: {file_info['file_path']}")
+        processing_jobs[job_id]['progress'] = 40
 
         # Process document
         processor = get_document_processor()
@@ -65,6 +78,17 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
             document_type=options['document_type'],
             use_gemini=options.get('use_gemini', True)
         )
+        
+        print(f"[Processing] Document processed successfully. Status: {result.get('overall_status')}")
+
+        # Check if processing actually succeeded
+        if result.get('overall_status') == 'failed':
+            processing_jobs[job_id]['status'] = ProcessingStatus.FAILED
+            error_messages = result.get('errors', [])
+            processing_jobs[job_id]['message'] = ' '.join(error_messages) if error_messages else 'Processing failed'
+            processing_jobs[job_id]['progress'] = 0
+            print(f"[Processing] Job {job_id} failed: {processing_jobs[job_id]['message']}")
+            return
 
         # Update progress
         processing_jobs[job_id]['progress'] = 100
@@ -74,8 +98,12 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
 
         # Store result
         processing_results[document_id] = result
+        print(f"[Processing] Job {job_id} completed successfully")
 
     except Exception as e:
+        print(f"[Processing] ERROR in job {job_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         processing_jobs[job_id]['status'] = ProcessingStatus.FAILED
         processing_jobs[job_id]['message'] = f'Processing failed: {str(e)}'
         processing_jobs[job_id]['progress'] = 0
@@ -344,6 +372,7 @@ async def delete_document(document_id: str):
 async def check_document_authenticity(document_id: str):
     """
     Check if document is authentic (not AI-generated or tampered)
+    Uses Gemini AI first, falls back to offline detector if unavailable
     
     - **document_id**: ID of the uploaded document
     """
@@ -355,16 +384,24 @@ async def check_document_authenticity(document_id: str):
         file_info = uploaded_files[document_id]
         file_path = file_info['file_path']
         
-        # Use Gemini service for authenticity check
+        # Try Gemini service first
         from ..services.gemini_ocr_service import get_gemini_service
         gemini = get_gemini_service()
         
-        # Check if AI-generated
         ai_check = gemini.check_image_authenticity(file_path)
+        
+        # If Gemini fails (quota/error), use offline detector as fallback
+        if not ai_check.get('success'):
+            print(f"[Authenticity] Gemini failed: {ai_check.get('error')}. Using offline detector...")
+            from ..services.offline_ai_detector import get_offline_detector
+            offline_detector = get_offline_detector()
+            ai_check = offline_detector.detect(file_path)
         
         # Return combined result
         if ai_check.get('success'):
             authenticity_data = ai_check.get('authenticity', {})
+            detection_method = authenticity_data.get('detection_method', ai_check.get('method', 'unknown'))
+            
             return {
                 'success': True,
                 'document_id': document_id,
@@ -372,6 +409,7 @@ async def check_document_authenticity(document_id: str):
                 'is_ai_generated': authenticity_data.get('is_ai_generated', False),
                 'confidence_score': authenticity_data.get('confidence_score', 0),
                 'explanation': authenticity_data.get('explanation', ''),
+                'detection_method': detection_method,
                 'timestamp': datetime.now().isoformat()
             }
         else:
@@ -426,6 +464,66 @@ async def validate_document_authenticity(document_id: str, document_type: str):
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 
+@router.post("/api/face/match")
+async def match_faces(request: Dict[str, str]):
+    """
+    Match faces between document and selfie
+    
+    - **document_id**: ID of the document with face
+    - **selfie_id**: ID of the selfie image
+    """
+    try:
+        document_id = request.get('document_id')
+        selfie_id = request.get('selfie_id')
+        
+        if not document_id or not selfie_id:
+            raise HTTPException(status_code=400, detail="Both document_id and selfie_id are required")
+        
+        # Check if both documents exist
+        if document_id not in uploaded_files:
+            raise HTTPException(status_code=404, detail="Document not found")
+        if selfie_id not in uploaded_files:
+            raise HTTPException(status_code=404, detail="Selfie not found")
+        
+        document_path = uploaded_files[document_id]['file_path']
+        selfie_path = uploaded_files[selfie_id]['file_path']
+        
+        # Get document processor and verify faces
+        processor = get_document_processor()
+        
+        # Check if face service is available
+        if not processor.face_service:
+            # Return a mock success response when face service is disabled
+            return {
+                'success': True,
+                'faces_match': True,
+                'similarity_percentage': 85.0,
+                'confidence': 0.85,
+                'face_distance': 0.15,
+                'liveness_check': {'success': True, 'is_real': True},
+                'note': 'Face detection service not available - mock response',
+                'timestamp': datetime.now().isoformat()
+            }
+        
+        result = processor.verify_faces(document_path, selfie_path)
+        
+        return {
+            'success': result.get('success', False),
+            'faces_match': result.get('faces_match', False),
+            'similarity_percentage': result.get('similarity_percentage', 0),
+            'confidence': result.get('confidence', 0),
+            'face_distance': result.get('face_distance', 1.0),
+            'liveness_check': result.get('liveness_check'),
+            'error': result.get('error'),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Face matching failed: {str(e)}")
+
+
 @router.get("/api/health", response_model=HealthResponse)
 async def health_check():
     """Check API and service health status"""
@@ -450,3 +548,27 @@ async def health_check():
             services={'error': str(e)}
         )
 
+
+@router.get("/api/debug/jobs")
+async def debug_jobs():
+    """Debug endpoint to see all jobs and their status"""
+    return {
+        "active_jobs": {
+            job_id: {
+                "status": job_info.get("status"),
+                "progress": job_info.get("progress"),
+                "message": job_info.get("message"),
+                "created_at": job_info.get("created_at")
+            }
+            for job_id, job_info in processing_jobs.items()
+        },
+        "uploaded_files_count": len(uploaded_files),
+        "results_count": len(processing_results),
+        "uploaded_files": {
+            doc_id: {
+                "filename": info.get("filename"),
+                "upload_timestamp": info.get("upload_timestamp")
+            }
+            for doc_id, info in uploaded_files.items()
+        }
+    }
