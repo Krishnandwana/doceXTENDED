@@ -45,14 +45,14 @@ const IDVerificationPage = () => {
   const [documentId, setDocumentId] = useState(null);
   const [selfieImage, setSelfieImage] = useState(null);
   const [documentType, setDocumentType] = useState('pan');
-  const [isProcessing, setIsProcessing] = useState(false);
+  // const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [cameraError, setCameraError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
-  const [processingStage, setProcessingStage] = useState('');
+  // const [processingStage, setProcessingStage] = useState('');
   
   // New states for confirmation screen
   const [extractedName, setExtractedName] = useState(null);
@@ -100,17 +100,17 @@ const IDVerificationPage = () => {
   }, []);
 
   // Helper to safely extract error message
-  const getErrorMessage = (error) => {
-    if (typeof error === 'string') return error;
-    if (error?.message) return error.message;
-    if (error?.detail) {
-      if (typeof error.detail === 'string') return error.detail;
-      if (Array.isArray(error.detail)) {
-        return error.detail.map(e => e.msg || JSON.stringify(e)).join(', ');
-      }
-    }
-    return 'An error occurred';
-  };
+  // const getErrorMessage = (error) => {
+  //   if (typeof error === 'string') return error;
+  //   if (error?.message) return error.message;
+  //   if (error?.detail) {
+  //     if (typeof error.detail === 'string') return error.detail;
+  //     if (Array.isArray(error.detail)) {
+  //       return error.detail.map(e => e.msg || JSON.stringify(e)).join(', ');
+  //     }
+  //   }
+  //   return 'Unknown error occurred';
+  // };
 
   // Face detection function - same as HTML test page
   const detectFaces = async (imageDataUrl) => {
@@ -155,86 +155,45 @@ const IDVerificationPage = () => {
   };
 
   // Face comparison function - exact same logic as HTML test page
-  const compareFacesLocal = async (selfieDataUrl, documentDataUrl) => {
-    try {
-      if (!modelsLoaded) {
-        console.error('Models not loaded!');
-        return {
-          match: false,
-          confidence: 0,
-          error: 'Face detection models not loaded',
-          facesDetected: { selfie: 0, document: 0 }
-        };
-      }
-
-      console.log('🔍 Detecting faces in both images...');
-      
-      // Detect faces in both images
-      const [selfieDetections, documentDetections] = await Promise.all([
-        detectFaces(selfieDataUrl),
-        detectFaces(documentDataUrl)
-      ]);
-
-      console.log(`Faces detected - Selfie: ${selfieDetections.length}, Document: ${documentDetections.length}`);
-
-      if (selfieDetections.length === 0) {
-        console.error('❌ No face detected in selfie');
-        return {
-          match: false,
-          confidence: 0,
-          error: 'No face detected in selfie',
-          facesDetected: { selfie: 0, document: documentDetections.length }
-        };
-      }
-
-      if (documentDetections.length === 0) {
-        console.error('❌ No face detected in document');
-        return {
-          match: false,
-          confidence: 0,
-          error: 'No face detected in document',
-          facesDetected: { selfie: selfieDetections.length, document: 0 }
-        };
-      }
-
-      console.log('✅ Faces detected in both images, comparing...');
-
-      // Get descriptors
-      const descriptor1 = selfieDetections[0].descriptor;
-      const descriptor2 = documentDetections[0].descriptor;
-
-      // Calculate Euclidean distance - same as HTML test page
-      const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
-      const threshold = 0.6;
-      const isMatch = distance < threshold;
-      const confidence = Math.max(0, Math.min(100, (1 - distance) * 100));
-
-      console.log('📊 Face Comparison Results:');
-      console.log('   Distance:', distance.toFixed(4));
-      console.log('   Threshold:', threshold);
-      console.log('   Confidence:', Math.round(confidence) + '%');
-      console.log('   Match:', isMatch ? '✅ YES' : '❌ NO');
-
-      return {
-        match: isMatch,
-        confidence: Math.round(confidence),
-        distance: distance,
-        threshold: threshold,
-        facesDetected: {
-          selfie: selfieDetections.length,
-          document: documentDetections.length
-        }
-      };
-    } catch (error) {
-      console.error('Face comparison error:', error);
-      return {
-        match: false,
-        confidence: 0,
-        error: error.message || 'Face comparison failed',
-        facesDetected: { selfie: 0, document: 0 }
-      };
-    }
-  };
+  // const compareFacesLocal = async (selfieDataUrl, documentDataUrl) => {
+  //   try {
+  //     if (!modelsLoaded) {
+  //       console.error('Models not loaded!');
+  //       return {
+  //         match: false,
+  //         confidence: 0,
+  //         error: 'Face detection models not loaded',
+  //         facesDetected: { selfie: 0, document: 0 }
+  //       };
+  //     }
+  //     console.log('🔍 Detecting faces in both images...');
+  //     const [selfieDetections, documentDetections] = await Promise.all([
+  //       detectFaces(selfieDataUrl),
+  //       detectFaces(documentDataUrl)
+  //     ]);
+  //     console.log(`Faces detected - Selfie: ${selfieDetections.length}, Document: ${documentDetections.length}`);
+  //     if (selfieDetections.length === 0) {
+  //       console.error('❌ No face detected in selfie');
+  //       return { match: false, confidence: 0, error: 'No face detected in selfie', facesDetected: { selfie: 0, document: documentDetections.length } };
+  //     }
+  //     if (documentDetections.length === 0) {
+  //       console.error('❌ No face detected in document');
+  //       return { match: false, confidence: 0, error: 'No face detected in document', facesDetected: { selfie: selfieDetections.length, document: 0 } };
+  //     }
+  //     console.log('✅ Faces detected in both images, comparing...');
+  //     const descriptor1 = selfieDetections[0].descriptor;
+  //     const descriptor2 = documentDetections[0].descriptor;
+  //     const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
+  //     const threshold = 0.6;
+  //     const isMatch = distance < threshold;
+  //     const confidence = Math.max(0, Math.min(100, (1 - distance) * 100));
+  //     console.log('📊 Face Comparison Results:', 'Distance:', distance.toFixed(4), 'Threshold:', threshold, 'Confidence:', Math.round(confidence) + '%', 'Match:', isMatch ? '✅ YES' : '❌ NO');
+  //     return { match: isMatch, confidence: Math.round(confidence), distance: distance, threshold: threshold, facesDetected: { selfie: selfieDetections.length, document: documentDetections.length } };
+  //   } catch (error) {
+  //     console.error('Face comparison error:', error);
+  //     return { match: false, confidence: 0, error: error.message || 'Face comparison failed', facesDetected: { selfie: 0, document: 0 } };
+  //   }
+  // };
 
   // Handle document upload
   const handleDocumentUpload = (event) => {
@@ -433,6 +392,7 @@ const IDVerificationPage = () => {
         setError('Failed to parse verification results');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
   // Reset and start over

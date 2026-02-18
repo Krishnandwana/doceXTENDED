@@ -51,24 +51,24 @@ const ApiDocumentation = () => {
           <aside className="hidden lg:block w-64 shrink-0 border-r border-white/5 h-[calc(100vh-64px)] overflow-y-auto sticky top-16 py-6 pr-4">
             <div className="space-y-1">
               <div className="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Getting Started</div>
-              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#">
+              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#introduction">
                 <span className="material-symbols-outlined !text-[20px] group-hover:text-primary transition-colors">info</span>
                 Introduction
               </a>
-              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#">
+              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#authentication">
                 <span className="material-symbols-outlined !text-[20px] group-hover:text-primary transition-colors">lock</span>
                 Authentication
               </a>
               <div className="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 mt-6">Resources</div>
-              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-white bg-primary/10 rounded-lg relative border-l-2 border-primary" href="#">
+              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-white bg-primary/10 rounded-lg relative border-l-2 border-primary" href="#envelopes">
                 <span className="material-symbols-outlined !text-[20px] text-primary">mail</span>
                 Envelopes
               </a>
-              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#">
+              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#webhooks">
                 <span className="material-symbols-outlined !text-[20px] group-hover:text-primary transition-colors">webhook</span>
                 Webhooks
               </a>
-              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#">
+              <a className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors group" href="#recipients">
                 <span className="material-symbols-outlined !text-[20px] group-hover:text-primary transition-colors">group</span>
                 Recipients
               </a>
