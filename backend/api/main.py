@@ -27,7 +27,7 @@ app = FastAPI(
 # Get allowed origins from environment or use defaults
 allowed_origins_str = os.getenv(
     "ALLOWED_ORIGINS",
-    "https://docu-verify-eight.vercel.app,http://localhost:3005,http://localhost:3000"
+    "https://doce-xtended.vercel.app,https://docu-verify-eight.vercel.app,http://localhost:3005,http://localhost:3000"
 )
 
 # Split and add support for file:// protocol (null origin) for testing
