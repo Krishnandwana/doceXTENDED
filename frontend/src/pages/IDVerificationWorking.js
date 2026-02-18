@@ -51,7 +51,7 @@ const IDVerificationPage = () => {
   const [error, setError] = useState(null);
   const [cameraError, setCameraError] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
-  const [modelsLoaded, setModelsLoaded] = useState(false);
+  // const [modelsLoaded, setModelsLoaded] = useState(false);
   // const [processingStage, setProcessingStage] = useState('');
   
   // New states for confirmation screen
@@ -113,46 +113,46 @@ const IDVerificationPage = () => {
   // };
 
   // Face detection function - same as HTML test page
-  const detectFaces = async (imageDataUrl) => {
-    try {
-      console.log('Detecting faces in image...');
-      
-      // Create image element from data URL
-      const img = await new Promise((resolve, reject) => {
-        const imgElement = new Image();
-        imgElement.onload = () => resolve(imgElement);
-        imgElement.onerror = reject;
-        imgElement.src = imageDataUrl;
-      });
+  // const detectFaces = async (imageDataUrl) => {
+  //   try {
+  //     console.log('Detecting faces in image...');
+  //     
+  //     // Create image element from data URL
+  //     const img = await new Promise((resolve, reject) => {
+  //       const imgElement = new Image();
+  //       imgElement.onload = () => resolve(imgElement);
+  //       imgElement.onerror = reject;
+  //       imgElement.src = imageDataUrl;
+  //     });
 
-      console.log('Image loaded:', img.width, 'x', img.height);
-      
-      // Try SSD MobileNet first (more accurate)
-      console.log('Detecting with SSD MobileNet...');
-      let detections = await faceapi
-        .detectAllFaces(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
-        .withFaceLandmarks()
-        .withFaceDescriptors();
+  //     console.log('Image loaded:', img.width, 'x', img.height);
+  //     
+  //     // Try SSD MobileNet first (more accurate)
+  //     console.log('Detecting with SSD MobileNet...');
+  //     let detections = await faceapi
+  //       .detectAllFaces(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
+  //       .withFaceLandmarks()
+  //       .withFaceDescriptors();
 
-      console.log(`SSD MobileNet detected ${detections.length} faces`);
+  //     console.log(`SSD MobileNet detected ${detections.length} faces`);
 
-      // Fallback to TinyFaceDetector if needed
-      if (detections.length === 0) {
-        console.log('Trying TinyFaceDetector as fallback...');
-        detections = await faceapi
-          .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 }))
-          .withFaceLandmarks()
-          .withFaceDescriptors();
-        
-        console.log(`TinyFaceDetector detected ${detections.length} faces`);
-      }
+  //     // Fallback to TinyFaceDetector if needed
+  //     if (detections.length === 0) {
+  //       console.log('Trying TinyFaceDetector as fallback...');
+  //       detections = await faceapi
+  //         .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 }))
+  //         .withFaceLandmarks()
+  //         .withFaceDescriptors();
+  //       
+  //       console.log(`TinyFaceDetector detected ${detections.length} faces`);
+  //     }
 
-      return detections;
-    } catch (error) {
-      console.error('Face detection error:', error);
-      return [];
-    }
-  };
+  //     return detections;
+  //   } catch (error) {
+  //     console.error('Face detection error:', error);
+  //     return [];
+  //   }
+  // };
 
   // Face comparison function - exact same logic as HTML test page
   // const compareFacesLocal = async (selfieDataUrl, documentDataUrl) => {
