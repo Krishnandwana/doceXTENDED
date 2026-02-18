@@ -82,7 +82,7 @@ const IDVerificationPage = () => {
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         
         if (!cancelled) {
-          setModelsLoaded(true);
+          // setModelsLoaded(true);
           console.log('✅ All face-api.js models loaded successfully');
         }
       } catch (err) {
