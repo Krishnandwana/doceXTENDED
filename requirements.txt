@@ -17,27 +17,11 @@ torchvision>=0.15.0
 # Using OpenCV Haar Cascade instead
 
 # Image Processing
-Pillow==10.0.0
-opencv-python==4.8.1.78
-numpy==1.24.3
-scipy==1.11.4
-
-# Async and Background Tasks
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-
-# Database (Optional)
-sqlalchemy==2.0.23
-alembic==1.13.0
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+scipy>=1.11.0
 
 # Utilities
 python-dotenv==1.0.0
 aiofiles==23.2.1
-
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx
-
-# Logging
-python-json-logger==2.0.7
