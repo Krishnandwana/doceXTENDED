@@ -13,12 +13,14 @@ module.exports = function override(config) {
     "zlib": require.resolve("browserify-zlib"),
     "fs": false,
     "path": require.resolve("path-browserify"),
-    "process": require.resolve("process/browser")
+    "process": require.resolve("process/browser.js")
   });
   config.resolve.fallback = fallback;
+  config.resolve.extensions = [...(config.resolve.extensions || []), '.js', '.jsx', '.json'];
+  config.resolve.fullySpecified = false;
   config.plugins = (config.plugins || []).concat([
     new webpack.ProvidePlugin({
-      process: 'process/browser',
+      process: 'process/browser.js',
       Buffer: ['buffer', 'Buffer']
     })
   ]);
