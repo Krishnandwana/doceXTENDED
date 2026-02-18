@@ -123,13 +123,13 @@ class DocumentParser:
         if dob_match:
             parsed['dob'] = dob_match.group(0)
 
-        # Extract name
-        name_match = re.search(r'(?:Name|NAME)[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', text, re.IGNORECASE)
+        # Extract name (supports both Title Case and ALL CAPS)
+        name_match = re.search(r'(?:Name|NAME)[:\s]*([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)', text, re.IGNORECASE)
         if name_match:
             parsed['name'] = name_match.group(1).strip()
 
-        # Extract father's name
-        father_match = re.search(r'(?:Father|FATHER|Father\'s Name)[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', text, re.IGNORECASE)
+        # Extract father's name (supports both Title Case and ALL CAPS)
+        father_match = re.search(r'(?:Father|FATHER|Father\'s Name)[:\s]*([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)', text, re.IGNORECASE)
         if father_match:
             parsed['father_name'] = father_match.group(1).strip()
 

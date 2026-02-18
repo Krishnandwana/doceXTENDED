@@ -1,0 +1,16 @@
+venv/
+venv1/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.dylib
+data/uploads/
+data/processed/
+backend/
+*.log
+.env
+.vscode/
+node_modules/

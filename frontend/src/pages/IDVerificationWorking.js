@@ -5,7 +5,7 @@ import axios from 'axios';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Box, Sphere } from '@react-three/drei';
 import { motion } from 'framer-motion';
-import { loadFaceApiModels, compareFaces } from '../utils/faceApiHelper';
+import * as faceapi from 'face-api.js';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -39,9 +39,10 @@ function ScanningAnimation({ isScanning }) {
 const IDVerificationPage = () => {
   const navigate = useNavigate();
   const webcamRef = useRef(null);
-  const [step, setStep] = useState('upload'); // upload, capture, processing, result
+  const [step, setStep] = useState('upload'); // upload, confirmation, capture, processing, result
   const [documentFile, setDocumentFile] = useState(null);
   const [documentPreview, setDocumentPreview] = useState(null);
+  const [documentId, setDocumentId] = useState(null);
   const [selfieImage, setSelfieImage] = useState(null);
   const [documentType, setDocumentType] = useState('pan');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -52,22 +53,37 @@ const IDVerificationPage = () => {
   const [cameraReady, setCameraReady] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
+  
+  // New states for confirmation screen
+  const [extractedName, setExtractedName] = useState(null);
+  const [extractedId, setExtractedId] = useState(null);
+  const [croppedFace, setCroppedFace] = useState(null);
+  const [extractingPreview, setExtractingPreview] = useState(false);
 
-  // Load face-api models on mount
+  // Load face-api models on mount using the same approach as test HTML
   useEffect(() => {
     let cancelled = false;
     
     const loadModels = async () => {
       try {
-        console.log('Starting to load face-api.js models...');
-        const loaded = await loadFaceApiModels();
+        const MODEL_URL = '/models';
+        console.log('Loading face-api.js models from:', MODEL_URL);
+        
+        console.log('Loading SSD MobileNet...');
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+        
+        console.log('Loading Face Landmark Model...');
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        
+        console.log('Loading Face Recognition Model...');
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        
+        console.log('Loading Tiny Face Detector...');
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        
         if (!cancelled) {
-          setModelsLoaded(loaded);
-          if (loaded) {
-            console.log('✅ Face detection models loaded successfully!');
-          } else {
-            console.warn('⚠️ Face detection models not loaded - face matching may not work');
-          }
+          setModelsLoaded(true);
+          console.log('✅ All face-api.js models loaded successfully');
         }
       } catch (err) {
         if (!cancelled) {
@@ -92,9 +108,132 @@ const IDVerificationPage = () => {
       if (Array.isArray(error.detail)) {
         return error.detail.map(e => e.msg || JSON.stringify(e)).join(', ');
       }
-      return JSON.stringify(error.detail);
     }
     return 'An error occurred';
+  };
+
+  // Face detection function - same as HTML test page
+  const detectFaces = async (imageDataUrl) => {
+    try {
+      console.log('Detecting faces in image...');
+      
+      // Create image element from data URL
+      const img = await new Promise((resolve, reject) => {
+        const imgElement = new Image();
+        imgElement.onload = () => resolve(imgElement);
+        imgElement.onerror = reject;
+        imgElement.src = imageDataUrl;
+      });
+
+      console.log('Image loaded:', img.width, 'x', img.height);
+      
+      // Try SSD MobileNet first (more accurate)
+      console.log('Detecting with SSD MobileNet...');
+      let detections = await faceapi
+        .detectAllFaces(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
+      console.log(`SSD MobileNet detected ${detections.length} faces`);
+
+      // Fallback to TinyFaceDetector if needed
+      if (detections.length === 0) {
+        console.log('Trying TinyFaceDetector as fallback...');
+        detections = await faceapi
+          .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 }))
+          .withFaceLandmarks()
+          .withFaceDescriptors();
+        
+        console.log(`TinyFaceDetector detected ${detections.length} faces`);
+      }
+
+      return detections;
+    } catch (error) {
+      console.error('Face detection error:', error);
+      return [];
+    }
+  };
+
+  // Face comparison function - exact same logic as HTML test page
+  const compareFacesLocal = async (selfieDataUrl, documentDataUrl) => {
+    try {
+      if (!modelsLoaded) {
+        console.error('Models not loaded!');
+        return {
+          match: false,
+          confidence: 0,
+          error: 'Face detection models not loaded',
+          facesDetected: { selfie: 0, document: 0 }
+        };
+      }
+
+      console.log('🔍 Detecting faces in both images...');
+      
+      // Detect faces in both images
+      const [selfieDetections, documentDetections] = await Promise.all([
+        detectFaces(selfieDataUrl),
+        detectFaces(documentDataUrl)
+      ]);
+
+      console.log(`Faces detected - Selfie: ${selfieDetections.length}, Document: ${documentDetections.length}`);
+
+      if (selfieDetections.length === 0) {
+        console.error('❌ No face detected in selfie');
+        return {
+          match: false,
+          confidence: 0,
+          error: 'No face detected in selfie',
+          facesDetected: { selfie: 0, document: documentDetections.length }
+        };
+      }
+
+      if (documentDetections.length === 0) {
+        console.error('❌ No face detected in document');
+        return {
+          match: false,
+          confidence: 0,
+          error: 'No face detected in document',
+          facesDetected: { selfie: selfieDetections.length, document: 0 }
+        };
+      }
+
+      console.log('✅ Faces detected in both images, comparing...');
+
+      // Get descriptors
+      const descriptor1 = selfieDetections[0].descriptor;
+      const descriptor2 = documentDetections[0].descriptor;
+
+      // Calculate Euclidean distance - same as HTML test page
+      const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
+      const threshold = 0.6;
+      const isMatch = distance < threshold;
+      const confidence = Math.max(0, Math.min(100, (1 - distance) * 100));
+
+      console.log('📊 Face Comparison Results:');
+      console.log('   Distance:', distance.toFixed(4));
+      console.log('   Threshold:', threshold);
+      console.log('   Confidence:', Math.round(confidence) + '%');
+      console.log('   Match:', isMatch ? '✅ YES' : '❌ NO');
+
+      return {
+        match: isMatch,
+        confidence: Math.round(confidence),
+        distance: distance,
+        threshold: threshold,
+        facesDetected: {
+          selfie: selfieDetections.length,
+          document: documentDetections.length
+        }
+      };
+    } catch (error) {
+      console.error('Face comparison error:', error);
+      return {
+        match: false,
+        confidence: 0,
+        error: error.message || 'Face comparison failed',
+        facesDetected: { selfie: 0, document: 0 }
+      };
+    }
   };
 
   // Handle document upload
@@ -107,12 +246,69 @@ const IDVerificationPage = () => {
     }
   };
 
-  // Proceed to face capture
-  const proceedToCapture = () => {
+  // Proceed to confirmation after document upload
+  const proceedToConfirmation = async () => {
     if (!documentFile) {
       setError('Please upload a document first');
       return;
     }
+
+    setExtractingPreview(true);
+    setError(null);
+
+    try {
+      // Step 1: Upload document
+      const formData = new FormData();
+      formData.append('file', documentFile);
+
+      const uploadResponse = await axios.post(`${API_BASE_URL}/api/documents/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 15000
+      });
+
+      const docId = uploadResponse.data.document_id;
+      setDocumentId(docId);
+
+      // Step 2: Extract preview (face, name, ID number)
+      const previewResponse = await axios.post(`${API_BASE_URL}/api/documents/extract-preview`, {
+        document_id: docId,
+        document_type: documentType
+      }, { timeout: 60000 }); // 60 second timeout for OCR processing
+
+      const previewData = previewResponse.data;
+
+      // Use cropped document if available, otherwise keep original
+      if (previewData.document_cropped && previewData.cropped_document) {
+        console.log('✅ Using cropped document image');
+        setDocumentPreview(previewData.cropped_document);
+      }
+
+      // Set extracted data
+      if (previewData.face_extracted && previewData.face_image_base64) {
+        setCroppedFace(`data:image/jpeg;base64,${previewData.face_image_base64}`);
+      }
+      
+      if (previewData.name) {
+        setExtractedName(previewData.name);
+      }
+      
+      if (previewData.id_number) {
+        setExtractedId(previewData.id_number);
+      }
+
+      // Move to confirmation screen
+      setStep('confirmation');
+      setExtractingPreview(false);
+
+    } catch (err) {
+      console.error('Preview extraction error:', err);
+      setError(err.response?.data?.detail || err.message || 'Failed to extract document preview');
+      setExtractingPreview(false);
+    }
+  };
+  
+  // Proceed to face capture from confirmation
+  const proceedToCapture = () => {
     setStep('capture');
   };
 
@@ -149,175 +345,109 @@ const IDVerificationPage = () => {
     setSelfieImage(null);
   };
 
-  // Submit for verification
+  // Submit for verification - redirect to HTML test page
   const submitVerification = async () => {
-    if (!documentFile || !selfieImage) {
+    if (!documentId || !selfieImage) {
       setError('Both document and selfie are required');
       return;
     }
 
-    setStep('processing');
-    setIsProcessing(true);
-    setProgress(0);
-    setError(null);
+    if (!croppedFace) {
+      setError('No face extracted from document');
+      return;
+    }
 
     try {
-      console.log('Starting verification process...');
+      console.log('Preparing for face verification...');
       
-      // Step 1: Upload document
-      setProgress(20);
-      setProcessingStage('Uploading document...');
-      console.log('Uploading document...');
+      // Store images in sessionStorage for the HTML test page
+      sessionStorage.setItem('verification_document_image', croppedFace);
+      sessionStorage.setItem('verification_selfie_image', selfieImage);
+      sessionStorage.setItem('verification_return_url', window.location.pathname);
+      sessionStorage.setItem('verification_document_id', documentId);
+      sessionStorage.setItem('verification_document_type', documentType);
       
-      const formData = new FormData();
-      formData.append('file', documentFile);
-
-      const uploadResponse = await axios.post(`${API_BASE_URL}/api/documents/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 15000
-      });
-
-      console.log('Upload response:', uploadResponse.data);
-      const docId = uploadResponse.data.document_id;
-      setProgress(40);
-
-      // Step 2: Process document
-      setProcessingStage('Processing document...');
-      console.log('Processing document...');
+      console.log('✅ Images stored in sessionStorage, redirecting to verification page...');
       
-      const processResponse = await axios.post(`${API_BASE_URL}/api/documents/process`, {
-        document_id: docId,
-        document_type: documentType,
-        use_gemini: true
-      }, { timeout: 30000 });
-
-      console.log('Process response:', processResponse.data);
-
-      const jobId = processResponse.data.job_id;
-      setProgress(60);
-
-      // Step 3: Poll for document processing results
-      setProcessingStage('Extracting document data...');
-      let attempts = 0;
-      const maxAttempts = 30;
-      const pollInterval = setInterval(async () => {
-        attempts++;
-        try {
-          const statusResponse = await axios.get(`${API_BASE_URL}/api/documents/status/${jobId}`);
-          const status = statusResponse.data;
-
-          if (status.status === 'completed') {
-            clearInterval(pollInterval);
-            setProgress(70);
-
-            // Get processed document results
-            const resultsResponse = await axios.get(`${API_BASE_URL}/api/documents/results/${docId}`);
-            setProgress(80);
-
-            // Step 4: Client-side face matching using face-api.js
-            setProcessingStage('Detecting faces...');
-            setProgress(85);
-
-            try {
-              // Compare faces using face-api.js (runs in browser)
-              const faceMatchResult = await compareFaces(selfieImage, documentPreview);
-              setProgress(95);
-
-              setProcessingStage('Matching biometric features...');
-              
-              // Combine results
-              setProgress(100);
-              setResult({
-                documentData: resultsResponse.data,
-                faceMatch: {
-                  matched: faceMatchResult.match,
-                  confidence: faceMatchResult.confidence,
-                  distance: faceMatchResult.distance,
-                  method: 'face-api.js (client-side)',
-                  facesDetected: faceMatchResult.facesDetected,
-                  error: faceMatchResult.error
-                }
-              });
-              setStep('result');
-              setIsProcessing(false);
-              setProcessingStage('');
-            } catch (faceErr) {
-              console.error('Face matching error:', faceErr);
-              // Still show results but indicate face match failed
-              setResult({
-                documentData: resultsResponse.data,
-                faceMatch: {
-                  matched: false,
-                  confidence: 0,
-                  error: faceErr.message || 'Face matching failed'
-                }
-              });
-              setStep('result');
-              setIsProcessing(false);
-              setProcessingStage('');
-            }
-
-          } else if (status.status === 'failed') {
-            clearInterval(pollInterval);
-            const errorMsg = status.message || 'Processing failed - see backend logs';
-            throw new Error(errorMsg);
-          } else if (attempts >= maxAttempts) {
-            clearInterval(pollInterval);
-            // Try to get final status
-            try {
-              const finalStatus = await axios.get(`${API_BASE_URL}/api/documents/status/${jobId}`);
-              if (finalStatus.data.status === 'failed') {
-                throw new Error(finalStatus.data.message || 'Processing failed');
-              }
-            } catch (finalErr) {
-              console.error('Final status check error:', finalErr);
-            }
-            throw new Error('Processing timeout after 60 seconds. The API may be overloaded. Please try again.');
-          } else {
-            // Update progress during polling
-            const baseProgress = 60 + (attempts * 0.5);
-            setProgress(Math.min(baseProgress, 70));
-          }
-        } catch (err) {
-          clearInterval(pollInterval);
-          throw err;
-        }
-      }, 2000);
-
+      // Redirect to the HTML test page which will auto-run verification
+      window.location.href = '/test_face_verification.html';
+      
     } catch (err) {
-      console.error('Verification error:', err);
-      console.error('Error details:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-        code: err.code
-      });
-      
-      let errorMsg;
-      if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-        errorMsg = '🔴 Cannot connect to backend server. Please ensure:\n1. Backend is running (python run_backend.py)\n2. Backend is accessible at http://localhost:8000\n3. No firewall is blocking the connection';
-      } else if (err.code === 'ECONNABORTED') {
-        errorMsg = 'Request timeout. The server took too long to respond.';
-      } else {
-        errorMsg = err.response?.data ? getErrorMessage(err.response.data) : (err.message || 'Verification failed');
-      }
-      
-      setError(errorMsg);
-      setIsProcessing(false);
-      setStep('upload');
-      setProcessingStage('');
+      console.error('Error preparing verification:', err);
+      setError('Failed to prepare verification');
     }
   };
+
+  // Check for verification results when returning from HTML test page
+  useEffect(() => {
+    const results = sessionStorage.getItem('verification_results');
+    if (results) {
+      try {
+        const parsedResults = JSON.parse(results);
+        console.log('✅ Verification results received:', parsedResults);
+        
+        // Clear the results from sessionStorage
+        sessionStorage.removeItem('verification_results');
+        sessionStorage.removeItem('verification_return_url');
+        
+        // Get document ID and type
+        const docId = sessionStorage.getItem('verification_document_id');
+        const docType = sessionStorage.getItem('verification_document_type');
+        
+        // Clean up
+        sessionStorage.removeItem('verification_document_id');
+        sessionStorage.removeItem('verification_document_type');
+        
+        // Set the result and move to result step
+        setResult({
+          documentData: {
+            document_type: docType,
+            document_id: docId,
+            extracted_name: extractedName,
+            extracted_id: extractedId,
+            extracted_text: {
+              name: extractedName,
+              id_number: extractedId,
+              document_type: docType
+            }
+          },
+          faceMatch: {
+            is_match: parsedResults.match,
+            matched: parsedResults.match,
+            // Confidence comes as 0-100 from HTML, convert to 0-1 for display
+            confidence: parsedResults.confidence / 100,
+            match_score: parsedResults.confidence / 100,
+            distance: parsedResults.distance,
+            threshold: parsedResults.threshold,
+            // Check if faces were detected in both images
+            face_detected: parsedResults.facesDetected?.document > 0 && parsedResults.facesDetected?.selfie > 0,
+            facesDetected: parsedResults.facesDetected,
+            method: 'face-api.js (HTML verification)',
+            error: parsedResults.error
+          }
+        });
+        setStep('result');
+        
+      } catch (err) {
+        console.error('Error parsing verification results:', err);
+        setError('Failed to parse verification results');
+      }
+    }
+  }, []); // Run once on mount
 
   // Reset and start over
   const startOver = () => {
     setStep('upload');
     setDocumentFile(null);
     setDocumentPreview(null);
+    setDocumentId(null);
     setSelfieImage(null);
     setResult(null);
     setError(null);
     setProgress(0);
+    setCroppedFace(null);
+    setExtractedName(null);
+    setExtractedId(null);
   };
 
   return (
@@ -381,7 +511,7 @@ const IDVerificationPage = () => {
                 </label>
               ) : (
                 <div className="space-y-4">
-                  <div className="relative rounded-xl overflow-hidden border border-white/10">
+                  <div className="relative rounded-xl overflow-hidden border-[5px] border-primary" style={{boxShadow: '0 0 20px rgba(255, 121, 26, 0.5)'}}>
                     <img src={documentPreview} alt="Document" className="w-full h-auto" />
                     <button
                       onClick={() => {
@@ -413,14 +543,132 @@ const IDVerificationPage = () => {
                   </div>
                   
                   <button
-                    onClick={proceedToCapture}
-                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2"
+                    onClick={proceedToConfirmation}
+                    disabled={extractingPreview}
+                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span>Next: Capture Selfie</span>
-                    <span className="material-symbols-outlined">arrow_forward</span>
+                    {extractingPreview ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                        <span>Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Next: Confirm Details</span>
+                        <span className="material-symbols-outlined">arrow_forward</span>
+                      </>
+                    )}
                   </button>
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* Step 1.5: Confirmation Screen */}
+          {step === 'confirmation' && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-6"
+            >
+              <div className="text-center mb-6">
+                <h1 className="text-2xl font-bold text-white mb-2">Confirm Your Details</h1>
+                <p className="text-gray-400">Please verify the extracted information before proceeding</p>
+              </div>
+
+              {/* Cropped Face Display */}
+              {croppedFace && (
+                <div className="flex justify-center mb-6">
+                  <div className="relative">
+                    <div className="w-48 h-48 rounded-full overflow-hidden border-[6px] border-primary" style={{boxShadow: '0 0 20px rgba(255, 121, 26, 0.5), inset 0 0 0 2px rgba(255, 121, 26, 0.3)'}}>
+                      <img 
+                        src={croppedFace} 
+                        alt="Extracted Face" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg">
+                      ID Photo
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Extracted Information */}
+              <div className="bg-surface-dark rounded-xl border border-white/10 p-6 space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">badge</span>
+                  Extracted Information
+                </h3>
+                
+                <div className="space-y-4">
+                  {/* Name */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-gray-400">Full Name</label>
+                    <div className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3">
+                      {extractedName || 'Not extracted'}
+                    </div>
+                  </div>
+
+                  {/* ID Number */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-gray-400">
+                      {documentType === 'aadhaar' && 'Aadhaar Number'}
+                      {documentType === 'pan' && 'PAN Number'}
+                      {documentType === 'driving_license' && 'License Number'}
+                      {documentType === 'passport' && 'Passport Number'}
+                      {documentType === 'voter_id' && 'Voter ID Number'}
+                    </label>
+                    <div className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 font-mono">
+                      {extractedId || 'Not extracted'}
+                    </div>
+                  </div>
+
+                  {/* Document Type */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-gray-400">Document Type</label>
+                    <div className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 capitalize">
+                      {documentType.replace('_', ' ')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning if face not extracted */}
+              {!croppedFace && (
+                <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <div className="flex items-center gap-2 text-yellow-400">
+                    <span className="material-symbols-outlined">warning</span>
+                    <span className="text-sm font-medium">
+                      Face not detected in document. You can still proceed, but verification may not be possible.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setStep('upload');
+                    setCroppedFace(null);
+                    setExtractedName(null);
+                    setExtractedId(null);
+                    setDocumentId(null);
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined">arrow_back</span>
+                  <span>Back</span>
+                </button>
+                <button
+                  onClick={proceedToCapture}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined">check_circle</span>
+                  <span>Confirm & Continue</span>
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -478,7 +726,7 @@ const IDVerificationPage = () => {
                   </div>
                   <div className="flex gap-4">
                     <button
-                      onClick={() => setStep('upload')}
+                      onClick={() => setStep('confirmation')}
                       className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg transition-all"
                     >
                       Back
@@ -495,7 +743,7 @@ const IDVerificationPage = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="relative rounded-xl overflow-hidden border-2 border-primary max-w-md mx-auto">
+                  <div className="relative rounded-xl overflow-hidden border-[5px] border-primary max-w-md mx-auto" style={{boxShadow: '0 0 20px rgba(255, 121, 26, 0.5)'}}>
                     <img src={selfieImage} alt="Selfie" className="w-full h-auto" />
                   </div>
                   <div className="flex gap-4">

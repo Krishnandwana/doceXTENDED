@@ -12,8 +12,7 @@ from pathlib import Path
 from .gemini_ocr_service import get_gemini_service
 # from .paddle_ocr_service import get_paddle_service
 from .document_parser import get_document_parser
-# Temporarily disabled to avoid heavy dependencies
-# from .face_detection_service import get_face_service
+from .face_detection_service import get_face_service
 
 
 class DocumentProcessor:
@@ -24,9 +23,7 @@ class DocumentProcessor:
         self.gemini_service = get_gemini_service()
         # self.paddle_service = get_paddle_service()
         self.parser = get_document_parser()
-        # Temporarily disabled to avoid heavy dependencies
-        # self.face_service = get_face_service()
-        self.face_service = None
+        self.face_service = get_face_service()
 
     def process_document(
         self,

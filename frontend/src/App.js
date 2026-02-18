@@ -7,6 +7,7 @@ import ApiDocumentation from './pages/ApiDocumentation';
 import AIPipeline from './pages/AIPipeline';
 import IDVerificationWorking from './pages/IDVerificationWorking';
 import DocumentVerificationWorking from './pages/DocumentVerificationWorking';
+import FaceVerificationTest from './pages/FaceVerificationTest';
 
 function App() {
   return (
@@ -20,6 +21,9 @@ function App() {
         <Route path="/id-verification" element={<IDVerificationWorking />} />
         <Route path="/document-verification" element={<DocumentVerificationWorking />} />
         <Route path="/face-matching" element={<FaceMatching />} />
+        
+        {/* Face Verification Test Page */}
+        <Route path="/face-test" element={<FaceVerificationTest />} />
         
         {/* Info Pages */}
         <Route path="/api-docs" element={<ApiDocumentation />} />

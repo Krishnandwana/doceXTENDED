@@ -11,32 +11,57 @@ let modelsLoaded = false;
  * Load face-api.js models (call once on app startup)
  */
 export const loadFaceApiModels = async () => {
-  if (modelsLoaded) return true;
+  if (modelsLoaded) {
+    console.log('Models already loaded, skipping...');
+    return true;
+  }
 
   try {
     const MODEL_URL = '/models';
     console.log('Loading face-api.js models from:', MODEL_URL);
+    console.log('Current location:', window.location.href);
     
-    // Load models with timeout
-    const loadPromise = Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-    ]);
-
-    // Add 10 second timeout
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Model loading timeout')), 10000)
-    );
-
-    await Promise.race([loadPromise, timeoutPromise]);
+    // Check if models directory is accessible
+    try {
+      const testResponse = await fetch(`${MODEL_URL}/ssd_mobilenetv1_model-weights_manifest.json`);
+      if (!testResponse.ok) {
+        console.error('❌ Cannot access models directory. Status:', testResponse.status);
+        console.error('Make sure models are in public/models folder');
+        return false;
+      }
+      console.log('✅ Models directory is accessible');
+    } catch (fetchError) {
+      console.error('❌ Network error accessing models:', fetchError);
+      return false;
+    }
+    
+    // Load models with detailed progress
+    console.log('Loading SSD MobileNet v1...');
+    await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+    console.log('✅ SSD MobileNet v1 loaded');
+    
+    console.log('Loading Tiny Face Detector...');
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    console.log('✅ Tiny Face Detector loaded');
+    
+    console.log('Loading Face Landmark 68...');
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    console.log('✅ Face Landmark 68 loaded');
+    
+    console.log('Loading Face Recognition Net...');
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    console.log('✅ Face Recognition Net loaded');
 
     modelsLoaded = true;
-    console.log('✅ Face API models loaded successfully');
+    console.log('✅ All face-api.js models loaded successfully');
     return true;
   } catch (error) {
     console.error('❌ Error loading face-api models:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     console.warn('Face verification will not be available');
     return false;
   }
@@ -50,12 +75,21 @@ export const loadFaceApiModels = async () => {
 export const detectFaces = async (input) => {
   try {
     if (!modelsLoaded) {
-      await loadFaceApiModels();
+      console.warn('Models not loaded, attempting to load...');
+      const loaded = await loadFaceApiModels();
+      if (!loaded) {
+        console.error('Failed to load models for face detection');
+        return [];
+      }
     }
+
+    console.log('detectFaces input type:', typeof input, 'length:', input?.length || 'N/A');
+    console.log('detectFaces input preview:', typeof input === 'string' ? input.substring(0, 50) : 'not a string');
 
     // Convert data URL to image element if needed
     const img = typeof input === 'string' ? await loadImage(input) : input;
-
+    
+    console.log('Image loaded for detection:', img.width, 'x', img.height);
     console.log('Detecting faces with SSD MobileNet (more accurate)...');
     
     // Try with SSD MobileNet first (more accurate)
@@ -80,6 +114,7 @@ export const detectFaces = async (input) => {
     return detections;
   } catch (error) {
     console.error('Face detection error:', error);
+    console.error('Error stack:', error.stack);
     return [];
   }
 };

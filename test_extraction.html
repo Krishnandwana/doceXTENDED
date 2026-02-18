@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Document Extraction</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .upload-section {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: #f8f9ff;
+            transition: all 0.3s;
+        }
+
+        .upload-section:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .upload-label {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        .upload-label:hover {
+            transform: scale(1.05);
+        }
+
+        .doc-type-select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            background: white;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover:not(:disabled) {
+            transform: scale(1.02);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .result-item {
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .result-value {
+            color: #333;
+            font-size: 18px;
+            word-break: break-all;
+        }
+
+        .face-image {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #667eea;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #c00;
+        }
+
+        .success {
+            background: #efe;
+            color: #060;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #060;
+        }
+
+        .json-debug {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .api-url {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            border-left: 4px solid #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Document Extraction Test</h1>
+        <p class="subtitle">Test the face and data extraction API</p>
+
+        <div class="api-url">
+            <strong>API Base URL:</strong> <span id="apiUrl">http://localhost:8000</span>
+        </div>
+
+        <div class="upload-section">
+            <p style="color: #667eea; font-size: 18px; margin-bottom: 15px;">📄 Upload Document</p>
+            <input type="file" id="fileInput" accept="image/*">
+            <label for="fileInput" class="upload-label">Choose File</label>
+            <p id="fileName" style="margin-top: 15px; color: #666;"></p>
+        </div>
+
+        <select class="doc-type-select" id="docType">
+            <option value="pan">PAN Card</option>
+            <option value="aadhaar">Aadhaar Card</option>
+            <option value="driving_license">Driving License</option>
+            <option value="passport">Passport</option>
+            <option value="voter_id">Voter ID</option>
+        </select>
+
+        <img id="preview" class="preview-image" style="display:none;">
+
+        <button id="uploadBtn" disabled>1. Upload Document</button>
+        <button id="extractBtn" disabled>2. Extract Data & Face</button>
+
+        <div id="loading" class="loading" style="display:none;">
+            ⏳ Processing... Please wait...
+        </div>
+
+        <div id="error" class="error" style="display:none;"></div>
+        <div id="success" class="success" style="display:none;"></div>
+
+        <div id="results" class="results" style="display:none;">
+            <h3 style="color: #667eea; margin-bottom: 20px;">📊 Extraction Results</h3>
+            
+            <div id="faceResult" style="display:none;">
+                <div class="result-item" style="text-align: center;">
+                    <div class="result-label">Extracted Face</div>
+                    <img id="faceImage" class="face-image" style="margin-top: 10px;">
+                </div>
+            </div>
+
+            <div class="result-item">
+                <div class="result-label">Full Name</div>
+                <div class="result-value" id="nameResult">-</div>
+            </div>
+
+            <div class="result-item">
+                <div class="result-label">ID Number</div>
+                <div class="result-value" id="idResult">-</div>
+            </div>
+
+            <div class="result-item">
+                <div class="result-label">Document Type</div>
+                <div class="result-value" id="docTypeResult">-</div>
+            </div>
+
+            <h4 style="color: #667eea; margin: 20px 0 10px;">🔧 Debug Info</h4>
+            <div class="json-debug" id="debugInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        let uploadedDocId = null;
+        let selectedFile = null;
+
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const fileName = document.getElementById('fileName');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const extractBtn = document.getElementById('extractBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const success = document.getElementById('success');
+        const results = document.getElementById('results');
+
+        // Update API URL display
+        document.getElementById('apiUrl').textContent = API_BASE_URL;
+
+        // File selection
+        fileInput.addEventListener('change', (e) => {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                fileName.textContent = `📎 ${selectedFile.name}`;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(selectedFile);
+                uploadBtn.disabled = false;
+            }
+        });
+
+        // Upload document
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            success.style.display = 'none';
+            results.style.display = 'none';
+            uploadBtn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const response = await fetch(`${API_BASE_URL}/api/documents/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                console.log('Upload response:', data);
+
+                if (response.ok && data.success) {
+                    uploadedDocId = data.document_id;
+                    success.textContent = `✅ Document uploaded successfully! ID: ${uploadedDocId}`;
+                    success.style.display = 'block';
+                    extractBtn.disabled = false;
+                } else {
+                    throw new Error(data.detail || 'Upload failed');
+                }
+            } catch (err) {
+                error.textContent = `❌ Upload Error: ${err.message}`;
+                error.style.display = 'block';
+                uploadBtn.disabled = false;
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+
+        // Extract data
+        extractBtn.addEventListener('click', async () => {
+            if (!uploadedDocId) return;
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            success.style.display = 'none';
+            extractBtn.disabled = true;
+
+            try {
+                const docType = document.getElementById('docType').value;
+                
+                const response = await fetch(`${API_BASE_URL}/api/documents/extract-preview`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        document_id: uploadedDocId,
+                        document_type: docType
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Extract response:', data);
+
+                if (response.ok && data.success) {
+                    // Display results
+                    results.style.display = 'block';
+                    
+                    // Face
+                    if (data.face_extracted && data.face_image_base64) {
+                        document.getElementById('faceImage').src = `data:image/jpeg;base64,${data.face_image_base64}`;
+                        document.getElementById('faceResult').style.display = 'block';
+                    } else {
+                        document.getElementById('faceResult').style.display = 'none';
+                    }
+
+                    // Name
+                    document.getElementById('nameResult').textContent = data.name || 'Not extracted';
+                    
+                    // ID Number
+                    document.getElementById('idResult').textContent = data.id_number || 'Not extracted';
+                    
+                    // Document Type
+                    document.getElementById('docTypeResult').textContent = docType.toUpperCase();
+
+                    // Debug info
+                    document.getElementById('debugInfo').textContent = JSON.stringify(data, null, 2);
+
+                    if (data.name && data.id_number) {
+                        success.textContent = '✅ Extraction successful! All data extracted.';
+                        success.style.display = 'block';
+                    } else {
+                        error.textContent = `⚠️ Partial extraction. Face: ${data.face_extracted ? 'Yes' : 'No'}, Data: ${data.data_extracted ? 'Yes' : 'No'}. Error: ${data.data_error || data.face_error || 'Unknown'}`;
+                        error.style.display = 'block';
+                    }
+                } else {
+                    throw new Error(data.detail || 'Extraction failed');
+                }
+            } catch (err) {
+                error.textContent = `❌ Extraction Error: ${err.message}`;
+                error.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                extractBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

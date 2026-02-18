@@ -37,8 +37,9 @@
         .image-box img {
             width: 100%;
             height: auto;
-            border-radius: 4px;
-            border: 1px solid #444;
+            border-radius: 8px;
+            border: 4px solid #ff791a;
+            box-shadow: 0 0 15px rgba(255, 121, 26, 0.4);
         }
         .canvas-container {
             position: relative;
@@ -47,8 +48,9 @@
         canvas {
             width: 100%;
             height: auto;
-            border: 1px solid #444;
-            border-radius: 4px;
+            border: 4px solid #ff791a;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(255, 121, 26, 0.4);
         }
         .results {
             margin: 30px 0;
@@ -238,6 +240,42 @@
         let modelsLoaded = false;
         let image1Loaded = false;
         let image2Loaded = false;
+        let autoRun = false;
+
+        // Check if images were passed via sessionStorage (from React app)
+        function checkAutoLoadImages() {
+            const documentImage = sessionStorage.getItem('verification_document_image');
+            const selfieImage = sessionStorage.getItem('verification_selfie_image');
+            const returnUrl = sessionStorage.getItem('verification_return_url');
+            
+            if (documentImage && selfieImage) {
+                console.log('Auto-loading images from sessionStorage...');
+                autoRun = true;
+                
+                // Load document image (cropped face from ID)
+                const img1 = document.getElementById('img1');
+                img1.src = documentImage;
+                img1.style.display = 'block';
+                image1Loaded = true;
+                
+                // Load selfie image
+                const img2 = document.getElementById('img2');
+                img2.src = selfieImage;
+                img2.style.display = 'block';
+                image2Loaded = true;
+                
+                // Hide file inputs when auto-running
+                document.querySelectorAll('.file-input-container').forEach(el => {
+                    el.style.display = 'none';
+                });
+                
+                // Change headings
+                document.querySelector('.image-box:nth-child(1) h3').textContent = 'Document Face';
+                document.querySelector('.image-box:nth-child(2) h3').textContent = 'Captured Selfie';
+                
+                console.log('✅ Images auto-loaded from React app');
+            }
+        }
 
         function updateStatus(message, className = 'loading') {
             statusEl.textContent = message;
@@ -251,13 +289,21 @@
         function checkReadyToTest() {
             if (modelsLoaded && image1Loaded && image2Loaded) {
                 testBtn.disabled = false;
-                updateStatus('✅ Ready to test! Click button to compare faces.', 'match');
+                if (autoRun) {
+                    // Auto-run the test
+                    updateStatus('🔍 Auto-running face verification...', 'loading');
+                    setTimeout(() => runTest(), 500);
+                } else {
+                    updateStatus('✅ Ready to test! Click button to compare faces.', 'match');
+                }
             } else if (modelsLoaded) {
                 testBtn.disabled = true;
-                const missing = [];
-                if (!image1Loaded) missing.push('Image 1');
-                if (!image2Loaded) missing.push('Image 2');
-                updateStatus(`⚠️ Please select ${missing.join(' and ')}`, 'loading');
+                if (!autoRun) {
+                    const missing = [];
+                    if (!image1Loaded) missing.push('Image 1');
+                    if (!image2Loaded) missing.push('Image 2');
+                    updateStatus(`⚠️ Please select ${missing.join(' and ')}`, 'loading');
+                }
             }
         }
 
@@ -412,14 +458,65 @@
                 
                 resultsEl.style.display = 'block';
 
+                // If this was an auto-run from React app, store results and redirect back
+                if (autoRun) {
+                    const returnUrl = sessionStorage.getItem('verification_return_url');
+                    const results = {
+                        match: isMatch,
+                        confidence: Math.round(confidence),
+                        distance: distance.toFixed(4),
+                        threshold: threshold,
+                        facesDetected: {
+                            document: faces1.length,
+                            selfie: faces2.length
+                        }
+                    };
+                    
+                    sessionStorage.setItem('verification_results', JSON.stringify(results));
+                    
+                    // Clear the images to save space
+                    sessionStorage.removeItem('verification_document_image');
+                    sessionStorage.removeItem('verification_selfie_image');
+                    
+                    console.log('✅ Results stored, redirecting back in 2 seconds...');
+                    updateProgress('Verification complete! Redirecting back...');
+                    
+                    setTimeout(() => {
+                        if (returnUrl) {
+                            window.location.href = returnUrl;
+                        } else {
+                            window.location.href = '/id-verification';
+                        }
+                    }, 2000);
+                }
+
             } catch (error) {
                 updateStatus('❌ Error: ' + error.message, 'no-match');
                 console.error('Test error:', error);
+                
+                // If auto-run failed, still redirect back with error
+                if (autoRun) {
+                    const returnUrl = sessionStorage.getItem('verification_return_url');
+                    sessionStorage.setItem('verification_results', JSON.stringify({
+                        match: false,
+                        confidence: 0,
+                        error: error.message
+                    }));
+                    sessionStorage.removeItem('verification_document_image');
+                    sessionStorage.removeItem('verification_selfie_image');
+                    
+                    setTimeout(() => {
+                        window.location.href = returnUrl || '/id-verification';
+                    }, 2000);
+                }
             }
         }
 
         // Load models on page load
-        window.addEventListener('load', loadModels);
+        window.addEventListener('load', () => {
+            checkAutoLoadImages();
+            loadModels();
+        });
     </script>
 </body>
 </html>

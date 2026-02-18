@@ -524,6 +524,168 @@ async def match_faces(request: Dict[str, str]):
         raise HTTPException(status_code=500, detail=f"Face matching failed: {str(e)}")
 
 
+@router.post("/api/documents/extract-preview")
+async def extract_document_preview(request: Dict[str, str]):
+    """
+    Extract face, name, and ID number from document for preview/confirmation
+    
+    - **document_id**: ID of the uploaded document
+    - **document_type**: Type of document (aadhaar, pan, driving_license, passport, voter_id)
+    """
+    try:
+        document_id = request.get('document_id')
+        document_type = request.get('document_type', 'pan')
+        
+        if not document_id:
+            raise HTTPException(status_code=400, detail="document_id is required")
+        
+        # Check if document exists in memory or on disk
+        if document_id in uploaded_files:
+            document_path = uploaded_files[document_id]['file_path']
+        else:
+            # Server may have reloaded - check if file exists on disk
+            print(f"[Preview] Document not in memory, checking disk for: {document_id}")
+            possible_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']
+            document_path = None
+            
+            for ext in possible_extensions:
+                potential_path = UPLOAD_DIR / f"{document_id}{ext}"
+                if potential_path.exists():
+                    document_path = str(potential_path)
+                    print(f"[Preview] Found document on disk: {document_path}")
+                    break
+            
+            if not document_path:
+                raise HTTPException(status_code=404, detail="Document not found in memory or on disk")
+        
+        print(f"[Preview] Processing document: {document_path}")
+        
+        # Get document processor
+        processor = get_document_processor()
+        
+        # First, detect and crop document boundaries
+        cropped_doc_result = {'success': False, 'error': 'Document crop not attempted'}
+        cropped_document_path = document_path  # Default to original
+        
+        if processor.face_service:
+            try:
+                print(f"[Preview] Detecting document boundaries...")
+                cropped_doc_result = processor.face_service.detect_document_boundary(document_path)
+                print(f"[Preview] Document crop result: {cropped_doc_result.get('success')}")
+                
+                if cropped_doc_result.get('success'):
+                    # Save the cropped document temporarily
+                    cropped_image_base64 = cropped_doc_result.get('image_base64', '')
+                    print(f"[Preview] Cropped document extracted successfully")
+                else:
+                    print(f"[Preview] Document crop warning: {cropped_doc_result.get('error')}")
+                    # Continue with original image if crop fails
+            except Exception as crop_err:
+                print(f"[Preview] Document crop exception: {str(crop_err)}")
+                import traceback
+                traceback.print_exc()
+                cropped_doc_result = {'success': False, 'error': str(crop_err)}
+        
+        # Extract face from the cropped document if available, otherwise from original
+        # For face extraction, we'll use the original path since we need a file path
+        face_result = {'success': False, 'error': 'Face extraction not attempted'}
+        if processor.face_service:
+            try:
+                face_result = processor.face_service.extract_face_as_base64(document_path)
+                print(f"[Preview] Face extraction result: {face_result.get('success')}")
+                if not face_result.get('success'):
+                    print(f"[Preview] Face extraction error: {face_result.get('error')}")
+            except Exception as face_err:
+                print(f"[Preview] Face extraction exception: {str(face_err)}")
+                import traceback
+                traceback.print_exc()
+                face_result = {'success': False, 'error': str(face_err)}
+        
+        # Extract text and data using EasyOCR + Document Parser
+        name = None
+        id_number = None
+        data_result = {'success': False, 'error': 'Data extraction not attempted'}
+        
+        try:
+            print(f"[Preview] Extracting text from document type: {document_type}")
+            from ..services.easyocr_service import get_easyocr_service
+            from ..services.document_parser import DocumentParser
+            
+            ocr_service = get_easyocr_service()
+            parser = DocumentParser()
+            
+            # Extract text using EasyOCR
+            print(f"[Preview] Using EasyOCR for text extraction...")
+            ocr_result = ocr_service.extract_text(document_path)
+            print(f"[Preview] OCR success: {ocr_result.get('success')}")
+            
+            if ocr_result.get('success') and ocr_result.get('raw_text'):
+                raw_text = ocr_result['raw_text']
+                print(f"[Preview] Extracted text:\n{raw_text}")
+                
+                # Parse the text to extract structured data
+                parsed = parser.parse_document(raw_text, document_type)
+                print(f"[Preview] Parsed data: {parsed}")
+                
+                if parsed and isinstance(parsed, dict) and len(parsed) > 0:
+                    name = parsed.get('name')
+                    
+                    # Get ID number based on document type
+                    id_field_mapping = {
+                        'aadhaar': 'aadhaar_number',
+                        'pan': 'pan_number',
+                        'driving_license': 'license_number',
+                        'passport': 'passport_number',
+                        'voter_id': 'voter_id'
+                    }
+                    id_field = id_field_mapping.get(document_type)
+                    if id_field:
+                        id_number = parsed.get(id_field)
+                    
+                    print(f"[Preview] Final - Name: {name}, ID: {id_number}")
+                    data_result = {'success': True}
+                else:
+                    error_msg = 'Failed to parse extracted text'
+                    print(f"[Preview] Parse error: {error_msg}")
+                    data_result = {'success': False, 'error': error_msg}
+            else:
+                error_msg = ocr_result.get('error', 'OCR failed')
+                print(f"[Preview] OCR error: {error_msg}")
+                data_result = {'success': False, 'error': error_msg}
+                
+        except Exception as data_err:
+            print(f"[Preview] Data extraction exception: {str(data_err)}")
+            import traceback
+            traceback.print_exc()
+            data_result = {'success': False, 'error': str(data_err)}
+        
+        return {
+            'success': True,
+            'document_id': document_id,
+            'cropped_document': cropped_doc_result.get('image_base64') if cropped_doc_result.get('success') else None,
+            'document_cropped': cropped_doc_result.get('success', False),
+            'crop_width': cropped_doc_result.get('width'),
+            'crop_height': cropped_doc_result.get('height'),
+            'face_extracted': face_result.get('success', False),
+            'face_image_base64': face_result.get('face_image_base64') if face_result.get('success') else None,
+            'face_error': face_result.get('error') if not face_result.get('success') else None,
+            'data_extracted': data_result.get('success', False),
+            'name': name,
+            'id_number': id_number,
+            'data_error': data_result.get('error') if not data_result.get('success') else None,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Preview extraction exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Preview extraction failed: {str(e)}")
+
+
+
 @router.get("/api/health", response_model=HealthResponse)
 async def health_check():
     """Check API and service health status"""

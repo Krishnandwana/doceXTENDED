@@ -35,7 +35,7 @@ def main():
         "backend.api.main:app",
         host=host,
         port=port,
-        reload=True,
+        reload=False,  # Disabled to prevent crashes during EasyOCR init
         log_level="info"
     )
 
