@@ -760,15 +760,9 @@ const IDVerificationPage = () => {
               </div>
 
               <div className="text-center text-sm space-y-1">
-                {processingStage ? (
-                  <p className="text-primary font-medium">{processingStage}</p>
-                ) : (
-                  <>
-                    <p className="text-gray-400">Extracting document data...</p>
-                    <p className="text-gray-400">Detecting faces...</p>
-                    <p className="text-gray-400">Matching biometric features...</p>
-                  </>
-                )}
+                <p className="text-gray-400">Extracting document data...</p>
+                <p className="text-gray-400">Detecting faces...</p>
+                <p className="text-gray-400">Matching biometric features...</p>
               </div>
             </motion.div>
           )}
