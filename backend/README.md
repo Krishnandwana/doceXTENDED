@@ -9,12 +9,14 @@ Provide a fintech-ready verification API for:
 - document OCR and field extraction
 - rules validation by document type
 - ID-face to selfie-face verification using our own face model pipeline
-- authenticity risk signals
+- authenticity + fraud risk signals
+- quality scoring signals
 
 ## Stack
 
 - FastAPI + Uvicorn
 - PaddleOCR + PaddlePaddle
+- FaceNet (facenet-pytorch + torch)
 - OpenCV + Pillow + NumPy + SciPy
 - Pydantic + python-dotenv
 
@@ -48,8 +50,14 @@ python run_backend.py
 2. Create background processing job
 3. OCR extraction via PaddleOCR
 4. Parse + validate fields by document type
-5. Face and quality checks
+5. Face verification using FaceNet embeddings + cosine similarity
+6. Fraud/authenticity + quality checks
 6. Return structured verification output
+
+## Frontend Scope Note
+
+- Current frontend UI is ID-verification-only.
+- Document analysis endpoints in this backend are still active for API consumers.
 
 ## Product Positioning
 

@@ -120,6 +120,7 @@ class DocumentResultResponse(BaseModel):
     ocr_result: Optional[Dict[str, Any]] = None
     validation: Optional[Dict[str, Any]] = None
     face_detection: Optional[Dict[str, Any]] = None
+    analysis: Optional[Dict[str, Any]] = None
     gemini_validation: Optional[Dict[str, Any]] = None
     errors: List[str] = []
     warnings: List[str] = []

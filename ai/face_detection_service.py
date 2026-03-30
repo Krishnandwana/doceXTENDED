@@ -31,17 +31,23 @@ class FaceDetectionService:
         self.mtcnn = None
         self.resnet = None
         if self.facenet_available:
-            self.mtcnn = MTCNN(
-                image_size=160,
-                margin=14,
-                min_face_size=40,
-                thresholds=[0.6, 0.7, 0.7],
-                factor=0.709,
-                post_process=True,
-                keep_all=True,
-                device=self.device
-            )
-            self.resnet = InceptionResnetV1(pretrained="vggface2").eval().to(self.device)
+            try:
+                self.mtcnn = MTCNN(
+                    image_size=160,
+                    margin=14,
+                    min_face_size=40,
+                    thresholds=[0.6, 0.7, 0.7],
+                    factor=0.709,
+                    post_process=True,
+                    keep_all=True,
+                    device=self.device
+                )
+                self.resnet = InceptionResnetV1(pretrained="vggface2").eval().to(self.device)
+            except Exception:
+                # Offline fallback mode: keep service alive with Haar-only pipeline.
+                self.mtcnn = None
+                self.resnet = None
+                self.facenet_available = False
 
         # Keep Haar cascade for quality/liveness and fallback face crop for preview.
         self.face_cascade = cv2.CascadeClassifier(
@@ -95,6 +101,9 @@ class FaceDetectionService:
             Dictionary containing face detection results
         """
         try:
+            if not self.facenet_available:
+                return self._detect_faces_haar(image_path)
+
             image_rgb = self._load_rgb_image(image_path)
             boxes, aligned = self._detect_and_align_faces(image_rgb)
 
@@ -124,6 +133,26 @@ class FaceDetectionService:
                 'error': str(e),
                 'face_count': 0
             }
+
+    def _detect_faces_haar(self, image_path: str) -> Dict[str, Any]:
+        image = cv2.imread(image_path)
+        if image is None:
+            return {'success': False, 'error': f'Could not read image: {image_path}', 'face_count': 0}
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=3, minSize=(20, 20))
+        if len(faces) == 0:
+            faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.03, minNeighbors=2, minSize=(15, 15))
+        if len(faces) == 0:
+            return {'success': False, 'error': 'No face detected in image', 'face_count': 0}
+        face_locations = [(int(y), int(x + w), int(y + h), int(x)) for (x, y, w, h) in faces]
+        return {
+            'success': True,
+            'face_count': int(len(faces)),
+            'face_locations': face_locations,
+            'face_encodings': [],
+            'primary_face_encoding': None,
+            'method': 'opencv_haar_fallback'
+        }
 
     def analyze_face_quality(self, image_path: str) -> Dict[str, Any]:
         """
@@ -215,6 +244,9 @@ class FaceDetectionService:
             Dictionary containing comparison results
         """
         try:
+            if not self.facenet_available:
+                return self._compare_faces_haar(image1_path, image2_path, tolerance=tolerance)
+
             emb1, _ = self._get_primary_embedding(image1_path)
             emb2, _ = self._get_primary_embedding(image2_path)
 
@@ -245,6 +277,57 @@ class FaceDetectionService:
                 'success': False,
                 'error': str(e)
             }
+
+    def _compare_faces_haar(
+        self,
+        image1_path: str,
+        image2_path: str,
+        tolerance: float = 0.65
+    ) -> Dict[str, Any]:
+        try:
+            face1 = self._extract_primary_face_roi(image1_path)
+            face2 = self._extract_primary_face_roi(image2_path)
+            if face1 is None or face2 is None:
+                return {'success': False, 'error': 'Could not detect face in one or both images'}
+
+            hist1 = cv2.calcHist([face1], [0], None, [64], [0, 256])
+            hist2 = cv2.calcHist([face2], [0], None, [64], [0, 256])
+            cv2.normalize(hist1, hist1)
+            cv2.normalize(hist2, hist2)
+            corr = float(cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL))
+            corr = max(-1.0, min(1.0, corr))
+            similarity_percentage = float(((corr + 1.0) / 2.0) * 100.0)
+            threshold = tolerance if 0.0 <= tolerance <= 1.0 else 0.65
+            is_match = corr >= threshold
+            return {
+                'success': True,
+                'is_match': bool(is_match),
+                'face_distance': float(1.0 - corr),
+                'similarity_percentage': similarity_percentage,
+                'confidence': 'high' if corr >= 0.75 else 'medium' if corr >= 0.65 else 'low',
+                'cosine_similarity': corr,
+                'threshold': threshold,
+                'method': 'opencv_haar_hist_fallback'
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _extract_primary_face_roi(self, image_path: str) -> Optional[np.ndarray]:
+        image = cv2.imread(image_path)
+        if image is None:
+            return None
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=3, minSize=(20, 20))
+        if len(faces) == 0:
+            faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.03, minNeighbors=2, minSize=(15, 15))
+        if len(faces) == 0:
+            return None
+        faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+        x, y, w, h = faces[0]
+        roi = gray[y:y+h, x:x+w]
+        if roi.size == 0:
+            return None
+        return cv2.resize(roi, (160, 160), interpolation=cv2.INTER_CUBIC)
 
     def detect_liveness(self, image_path: str) -> Dict[str, Any]:
         """
@@ -324,6 +407,23 @@ class FaceDetectionService:
             Dictionary containing extraction results
         """
         try:
+            if not self.facenet_available:
+                # fallback crop path: reuse base64 extractor then save decoded bytes
+                extracted = self.extract_face_as_base64(image_path)
+                if not extracted.get('success'):
+                    return {'success': False, 'error': extracted.get('error', 'No face detected')}
+                face_b64 = extracted.get('face_image_base64', '')
+                if not face_b64:
+                    return {'success': False, 'error': 'No face image available'}
+                face_bytes = base64.b64decode(face_b64)
+                with open(output_path, 'wb') as f:
+                    f.write(face_bytes)
+                return {
+                    'success': True,
+                    'face_path': output_path,
+                    'face_location': extracted.get('face_location')
+                }
+
             image_rgb = self._load_rgb_image(image_path)
             boxes, aligned = self._detect_and_align_faces(image_rgb)
 

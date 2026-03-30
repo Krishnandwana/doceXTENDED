@@ -37,7 +37,7 @@ npm start
 
 Frontend runs at `http://localhost:3005`.
 
-## 6. Test Main API Flow
+## 6. Test Main ID Verification Flow
 
 ### Upload
 
@@ -45,31 +45,29 @@ Frontend runs at `http://localhost:3005`.
 curl -X POST "http://localhost:8000/api/documents/upload" -F "file=@path/to/id.jpg"
 ```
 
-### Process
+### Extract Preview (Face + Name + ID)
 
 ```bash
-curl -X POST "http://localhost:8000/api/documents/process" \
+curl -X POST "http://localhost:8000/api/documents/extract-preview" \
   -H "Content-Type: application/json" \
-  -d '{"document_id":"<DOCUMENT_ID>","document_type":"pan","use_gemini":false,"detect_face":true}'
-```
-
-### Poll Status
-
-```bash
-curl "http://localhost:8000/api/documents/status/<JOB_ID>"
-```
-
-### Get Result
-
-```bash
-curl "http://localhost:8000/api/documents/results/<DOCUMENT_ID>"
+  -d '{"document_id":"<DOCUMENT_ID>","document_type":"pan"}'
 ```
 
 ## 7. Face Match Flow
 
-1. Upload ID image.
-2. Upload selfie image.
+1. Upload ID image (`/api/documents/upload`).
+2. Upload selfie image (`/api/documents/upload`).
 3. Call `POST /api/face/match` with both IDs.
+
+## 8. Optional Advanced Document Pipeline (API)
+
+The backend still supports full document processing:
+
+- `POST /api/documents/process`
+- `GET /api/documents/status/{job_id}`
+- `GET /api/documents/results/{document_id}`
+- `POST /api/documents/{document_id}/authenticity`
+- `POST /api/documents/{document_id}/validate-authenticity`
 
 ## Product Plan
 

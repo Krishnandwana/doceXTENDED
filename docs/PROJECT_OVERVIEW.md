@@ -18,6 +18,7 @@ It processes ID documents, extracts key fields, and verifies a selfie against th
 - Structured parsing and validation
 - Authenticity and quality checks
 - Face verification using our own model pipeline
+- Modular `ai/` package for model services and signal processing
 
 ## Users
 
@@ -28,7 +29,7 @@ It processes ID documents, extracts key fields, and verifies a selfie against th
 ## Current Status
 
 - Working FastAPI backend with async processing endpoints
-- React frontend for demos and operator validation
+- React frontend focused on ID verification demos and operator validation
 - Document and face verification pipeline wired end-to-end
 
 ## Near-Term Roadmap

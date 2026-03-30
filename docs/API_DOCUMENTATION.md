@@ -14,6 +14,8 @@ Core value:
 - ID-to-selfie face verification through our own model pipeline
 - explainable verification outputs
 
+Current frontend scope: ID verification only. Document-analysis APIs remain available.
+
 ## Endpoints
 
 ### 1. Upload Document
@@ -78,9 +80,24 @@ Request: `multipart/form-data` with `file`
 
 `POST /api/documents/{document_id}/authenticity`
 
+Response includes:
+- `is_authentic` (boolean)
+- `is_ai_generated` (boolean)
+- `confidence_score` (0-100)
+- `risk_level` (`low`, `medium`, `high`)
+- `review_recommended` (boolean)
+- `detection_method` (`ai_fraud_detection_service`)
+- `signals` (low-level fraud indicators)
+
 ### 12. Validate Authenticity
 
 `POST /api/documents/{document_id}/validate-authenticity?document_type=pan`
+
+Response includes:
+- `is_clear`, `appears_genuine`, `tampering_detected`, `format_valid`
+- `confidence_score` (quality-based)
+- `risk_level`, `review_recommended`
+- `validation` object with `quality_metrics` and `fraud_signals`
 
 ### 13. Health
 

@@ -222,7 +222,7 @@ const IDVerificationPage = () => {
 
       const uploadResponse = await axios.post(`${API_BASE_URL}/api/documents/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 15000
+        timeout: 30000
       });
 
       const docId = uploadResponse.data.document_id;
@@ -232,7 +232,7 @@ const IDVerificationPage = () => {
       const previewResponse = await axios.post(`${API_BASE_URL}/api/documents/extract-preview`, {
         document_id: docId,
         document_type: documentType
-      }, { timeout: 60000 }); // 60 second timeout for OCR processing
+      }, { timeout: 120000 }); // 120 second timeout for OCR/model warm-up
 
       const previewData = previewResponse.data;
 
@@ -261,7 +261,13 @@ const IDVerificationPage = () => {
 
     } catch (err) {
       console.error('Preview extraction error:', err);
-      setError(err.response?.data?.detail || err.message || 'Failed to extract document preview');
+      const isTimeout = err?.code === 'ECONNABORTED' || String(err?.message || '').toLowerCase().includes('timeout');
+      setError(
+        err.response?.data?.detail
+          || (isTimeout ? 'Preview extraction is taking longer than expected. Please retry in a few seconds.' : null)
+          || err.message
+          || 'Failed to extract document preview'
+      );
       setExtractingPreview(false);
     }
   };
@@ -325,6 +331,8 @@ const IDVerificationPage = () => {
       sessionStorage.setItem('verification_return_url', window.location.pathname);
       sessionStorage.setItem('verification_document_id', documentId);
       sessionStorage.setItem('verification_document_type', documentType);
+      sessionStorage.setItem('verification_extracted_name', extractedName || '');
+      sessionStorage.setItem('verification_extracted_id', extractedId || '');
       
       console.log('✅ Images stored in sessionStorage, redirecting to verification page...');
       
@@ -352,21 +360,30 @@ const IDVerificationPage = () => {
         // Get document ID and type
         const docId = sessionStorage.getItem('verification_document_id');
         const docType = sessionStorage.getItem('verification_document_type');
+        const storedName = sessionStorage.getItem('verification_extracted_name') || '';
+        const storedId = sessionStorage.getItem('verification_extracted_id') || '';
         
         // Clean up
         sessionStorage.removeItem('verification_document_id');
         sessionStorage.removeItem('verification_document_type');
+        sessionStorage.removeItem('verification_extracted_name');
+        sessionStorage.removeItem('verification_extracted_id');
+
+        const finalName = extractedName || storedName || null;
+        const finalId = extractedId || storedId || null;
+        if (finalName) setExtractedName(finalName);
+        if (finalId) setExtractedId(finalId);
         
         // Set the result and move to result step
         setResult({
           documentData: {
             document_type: docType,
             document_id: docId,
-            extracted_name: extractedName,
-            extracted_id: extractedId,
+            extracted_name: finalName,
+            extracted_id: finalId,
             extracted_text: {
-              name: extractedName,
-              id_number: extractedId,
+              name: finalName,
+              id_number: finalId,
               document_type: docType
             }
           },
@@ -565,9 +582,13 @@ const IDVerificationPage = () => {
                   {/* Name */}
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-gray-400">Full Name</label>
-                    <div className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3">
-                      {extractedName || 'Not extracted'}
-                    </div>
+                    <input
+                      type="text"
+                      value={extractedName || ''}
+                      onChange={(e) => setExtractedName(e.target.value)}
+                      placeholder="Enter full name"
+                      className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
                   </div>
 
                   {/* ID Number */}
@@ -579,9 +600,13 @@ const IDVerificationPage = () => {
                       {documentType === 'passport' && 'Passport Number'}
                       {documentType === 'voter_id' && 'Voter ID Number'}
                     </label>
-                    <div className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 font-mono">
-                      {extractedId || 'Not extracted'}
-                    </div>
+                    <input
+                      type="text"
+                      value={extractedId || ''}
+                      onChange={(e) => setExtractedId(e.target.value)}
+                      placeholder="Enter ID number"
+                      className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
                   </div>
 
                   {/* Document Type */}
@@ -820,7 +845,7 @@ const IDVerificationPage = () => {
                     {Object.entries(result.documentData.extracted_text || {}).map(([key, value]) => (
                       <div key={key} className="flex justify-between items-start">
                         <span className="text-gray-400 capitalize">{key.replace(/_/g, ' ')}</span>
-                        <span className="text-white font-medium text-right">{value}</span>
+                        <span className="text-white font-medium text-right">{value || 'N/A'}</span>
                       </div>
                     ))}
                   </div>

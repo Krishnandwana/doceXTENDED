@@ -16,8 +16,15 @@ It verifies identity documents, extracts structured ID data, and matches the fac
 - OCR extraction with PaddleOCR
 - Structured field parsing and rule validation
 - Face extraction and face-match workflows
-- Offline authenticity heuristics for tamper/AI-image risk signals
+- AI fraud + authenticity analysis for tamper/AI-image risk signals
+- AI quality assessment (blur, glare, clarity, resolution)
 - Async job tracking (`upload -> process -> status -> results`)
+
+## Current UI Scope
+
+- Frontend is currently focused on ID verification only.
+- Document analysis UI routes are temporarily disabled and redirect to ID verification.
+- Backend document-analysis APIs remain available for integration/testing.
 
 ## API-First Architecture
 
@@ -25,7 +32,7 @@ It verifies identity documents, extracts structured ID data, and matches the fac
 Client App (Fintech) -> DocVerify API (FastAPI) -> Verification Pipeline
                                             -> OCR + Parsing + Validation
                                             -> Face Verification (Proprietary Model)
-                                            -> Authenticity Heuristics
+                                            -> Fraud + Authenticity + Quality Signals
 ```
 
 ## Tech Stack
@@ -34,6 +41,7 @@ Client App (Fintech) -> DocVerify API (FastAPI) -> Verification Pipeline
 - FastAPI
 - Uvicorn
 - PaddleOCR + PaddlePaddle
+- FaceNet (facenet-pytorch + torch)
 - OpenCV + Pillow + NumPy + SciPy
 - Pydantic + python-dotenv
 
@@ -48,6 +56,7 @@ Client App (Fintech) -> DocVerify API (FastAPI) -> Verification Pipeline
 
 ```text
 DOCUMENT-VERIFY/
+|- ai/             AI services (OCR, FaceNet, fraud, quality, preprocessing, postprocessing, tests)
 |- backend/        FastAPI app and processing services
 |- frontend/       React app for demo and operator flows
 |- docs/           Product + integration + API documentation

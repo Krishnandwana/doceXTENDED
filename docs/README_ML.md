@@ -18,14 +18,16 @@ This model pipeline is a core part of our fintech API offering and is designed f
 1. Image quality checks
 2. Face region extraction from ID
 3. Selfie face capture/normalization
-4. Face similarity scoring
+4. Face embedding (FaceNet) and cosine similarity scoring
 5. Decision thresholding and confidence
 
 ## Additional AI Components
 
 - OCR extraction via PaddleOCR
 - Rule-based document field validation
-- Offline authenticity heuristics
+- Fraud and authenticity scoring (`ai/fraud_detection_service.py`)
+- Quality assessment scoring (`ai/quality_assessment_service.py`)
+- Preprocessing and postprocessing helpers under `ai/preprocessing` and `ai/postprocessing`
 
 ## ML Roadmap
 

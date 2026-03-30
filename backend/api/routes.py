@@ -11,6 +11,8 @@ from typing import Dict, Any
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 
+from ai.fraud_detection_service import get_fraud_detection_service
+from ai.quality_assessment_service import get_quality_assessment_service
 from .models import *
 from ..services.document_processor import get_document_processor
 
@@ -31,6 +33,29 @@ PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def _looks_like_person_name(value: str) -> bool:
+    if not value:
+        return False
+    text = value.strip().lower()
+    blocked = (
+        "permanent account number",
+        "account number",
+        "government of india",
+        "income tax",
+        "tax department",
+        "department",
+        "republic of india",
+        "election commission",
+        "card",
+        "signature",
+    )
+    if any(token in text for token in blocked):
+        return False
+    if any(ch.isdigit() for ch in text):
+        return False
+    return len(text.split()) >= 2
 
 
 def validate_file(file: UploadFile) -> None:
@@ -76,7 +101,8 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
         result = processor.process_document(
             image_path=file_info['file_path'],
             document_type=options['document_type'],
-            use_gemini=options.get('use_gemini', True)
+            use_gemini=options.get('use_gemini', True),
+            detect_face=options.get('detect_face', True)
         )
         
         print(f"[Processing] Document processed successfully. Status: {result.get('overall_status')}")
@@ -264,6 +290,7 @@ async def get_document_results(document_id: str):
         ocr_result=result.get('ocr_result'),
         validation=result.get('validation'),
         gemini_validation=result.get('gemini_validation'),
+        analysis=result.get('analysis'),
         errors=result.get('errors', []),
         warnings=result.get('warnings', [])
     )
@@ -349,7 +376,7 @@ async def delete_document(document_id: str):
     try:
         # Delete file
         file_info = uploaded_files[document_id]
-        file__path = Path(file_info['file_path'])
+        file_path = Path(file_info['file_path'])
         if file_path.exists():
             file_path.unlink()
 
@@ -372,7 +399,7 @@ async def delete_document(document_id: str):
 async def check_document_authenticity(document_id: str):
     """
     Check if document is authentic (not AI-generated or tampered)
-    Uses offline heuristic detector
+    Uses AI fraud detector from top-level `ai` package.
     
     - **document_id**: ID of the uploaded document
     """
@@ -384,29 +411,33 @@ async def check_document_authenticity(document_id: str):
         file_info = uploaded_files[document_id]
         file_path = file_info['file_path']
         
-        from ..services.offline_ai_detector import get_offline_detector
-        offline_detector = get_offline_detector()
-        ai_check = offline_detector.detect(file_path)
-        
-        # Return combined result
-        if ai_check.get('success'):
-            authenticity_data = ai_check.get('authenticity', {})
-            detection_method = authenticity_data.get('detection_method', ai_check.get('method', 'unknown'))
-            
+        fraud_service = get_fraud_detection_service()
+        fraud_result = fraud_service.analyze(file_path)
+
+        if fraud_result.get('success'):
+            is_suspicious = bool(fraud_result.get('is_suspicious', False))
+            suspicious_score = float(fraud_result.get('suspicious_score', 0.0))
+            risk_level = str(fraud_result.get('risk_level', 'low'))
+            review_recommended = bool(fraud_result.get('review_recommended', False))
+            confidence_score = int(round((suspicious_score if is_suspicious else (1.0 - suspicious_score)) * 100))
+
             return {
                 'success': True,
                 'document_id': document_id,
-                'is_authentic': not authenticity_data.get('is_ai_generated', False),
-                'is_ai_generated': authenticity_data.get('is_ai_generated', False),
-                'confidence_score': authenticity_data.get('confidence_score', 0),
-                'explanation': authenticity_data.get('explanation', ''),
-                'detection_method': detection_method,
+                'is_authentic': not is_suspicious,
+                'is_ai_generated': is_suspicious,
+                'confidence_score': confidence_score,
+                'risk_level': risk_level,
+                'review_recommended': review_recommended,
+                'explanation': fraud_result.get('reason', ''),
+                'detection_method': 'ai_fraud_detection_service',
+                'signals': fraud_result.get('signals', {}),
                 'timestamp': datetime.now().isoformat()
             }
         else:
             return {
                 'success': False,
-                'error': ai_check.get('error', 'Authenticity check failed'),
+                'error': fraud_result.get('error', 'Authenticity check failed'),
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -417,7 +448,7 @@ async def check_document_authenticity(document_id: str):
 @router.post("/api/documents/{document_id}/validate-authenticity")
 async def validate_document_authenticity(document_id: str, document_type: str):
     """
-    Validate document quality using local heuristics
+    Validate document quality using AI quality + fraud heuristics
     
     - **document_id**: ID of the uploaded document
     - **document_type**: Type of document for validation
@@ -430,38 +461,50 @@ async def validate_document_authenticity(document_id: str, document_type: str):
         file_info = uploaded_files[document_id]
         file_path = file_info['file_path']
         
-        import cv2
+        quality_service = get_quality_assessment_service()
+        fraud_service = get_fraud_detection_service()
+        quality_result = quality_service.assess(file_path)
+        fraud_result = fraud_service.analyze(file_path)
 
-        image = cv2.imread(file_path)
-        if image is None:
+        if not quality_result.get('success'):
             return {
                 'success': False,
-                'error': 'Could not read document image',
+                'error': quality_result.get('error', 'Quality assessment failed'),
                 'timestamp': datetime.now().isoformat()
             }
 
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
-        is_clear = sharpness > 90
-
-        from ..services.offline_ai_detector import get_offline_detector
-        detector = get_offline_detector()
-        ai_result = detector.detect(file_path)
-        authenticity = ai_result.get('authenticity', {}) if ai_result.get('success') else {}
-        tampering_detected = bool(authenticity.get('is_ai_generated', False))
-
+        quality_score = float(quality_result.get('quality_score', 0.0))
+        quality_metrics = quality_result.get('metrics', {})
+        risk_level = str(fraud_result.get('risk_level', 'low'))
+        review_recommended = bool(fraud_result.get('review_recommended', False))
+        tampering_detected = bool(fraud_result.get('is_suspicious', False))
+        blur_score = float(quality_metrics.get('blur_score', 0.0))
+        is_clear = bool(quality_metrics.get('blur_score', 0.0) >= 90.0)
+        appears_genuine = not tampering_detected
+        note_suffix = " Manual review recommended." if (review_recommended and not tampering_detected) else ""
         validation_data = {
             'is_clear': is_clear,
-            'appears_genuine': not tampering_detected,
+            'appears_genuine': appears_genuine,
             'tampering_detected': tampering_detected,
+            'review_recommended': review_recommended,
+            'risk_level': risk_level,
             'format_valid': True,
-            'confidence_score': int(authenticity.get('confidence_score', min(99, max(35, sharpness // 3)))),
-            'notes': f'Local validation for {document_type}. Sharpness={sharpness:.2f}'
+            'confidence_score': int(round(quality_score * 100)),
+            'quality_score': quality_score,
+            'quality_metrics': quality_metrics,
+            'fraud_signals': fraud_result.get('signals', {}),
+            'notes': f'AI validation for {document_type}. Risk={risk_level}. Blur={blur_score:.2f}.{note_suffix}'
         }
 
         return {
             'success': True,
             'document_id': document_id,
+            'is_clear': validation_data['is_clear'],
+            'appears_genuine': validation_data['appears_genuine'],
+            'tampering_detected': validation_data['tampering_detected'],
+            'format_valid': validation_data['format_valid'],
+            'confidence_score': validation_data['confidence_score'],
+            'notes': validation_data['notes'],
             'validation': validation_data,
             'timestamp': datetime.now().isoformat()
         }
@@ -499,17 +542,7 @@ async def match_faces(request: Dict[str, str]):
         
         # Check if face service is available
         if not processor.face_service:
-            # Return a mock success response when face service is disabled
-            return {
-                'success': True,
-                'faces_match': True,
-                'similarity_percentage': 85.0,
-                'confidence': 0.85,
-                'face_distance': 0.15,
-                'liveness_check': {'success': True, 'is_real': True},
-                'note': 'Face detection service not available - mock response',
-                'timestamp': datetime.now().isoformat()
-            }
+            raise HTTPException(status_code=503, detail="Face detection service not available")
         
         result = processor.verify_faces(document_path, selfie_path)
         
@@ -614,11 +647,13 @@ async def extract_document_preview(request: Dict[str, str]):
         
         try:
             print(f"[Preview] Extracting text from document type: {document_type}")
-            from ..services.paddle_ocr_service import get_paddle_service
+            from ai.name_id_extractor import get_name_id_extractor
+            from ai.paddle_ocr_service import get_paddle_service
             from ..services.document_parser import DocumentParser
             
             ocr_service = get_paddle_service()
             parser = DocumentParser()
+            extractor = get_name_id_extractor()
             
             # Extract text using PaddleOCR
             print(f"[Preview] Using PaddleOCR for text extraction...")
@@ -627,14 +662,26 @@ async def extract_document_preview(request: Dict[str, str]):
             
             if ocr_result.get('success') and ocr_result.get('raw_text'):
                 raw_text = ocr_result['raw_text']
+                structured_lines = ocr_result.get('structured_text') or []
+                parse_text = "\n".join(structured_lines) if structured_lines else raw_text
                 print(f"[Preview] Extracted text:\n{raw_text}")
                 
                 # Parse the text to extract structured data
-                parsed = parser.parse_document(raw_text, document_type)
+                parsed = parser.parse_document(parse_text, document_type)
+                hybrid = extractor.extract(parse_text, document_type, structured_lines=structured_lines)
                 print(f"[Preview] Parsed data: {parsed}")
                 
                 if parsed and isinstance(parsed, dict) and len(parsed) > 0:
-                    name = parsed.get('name')
+                    parsed_name = parsed.get('name')
+                    hybrid_name = (hybrid.get('fields', {}) or {}).get('name')
+                    if document_type == 'pan' and hybrid_name and _looks_like_person_name(str(hybrid_name)):
+                        name = hybrid_name
+                    elif parsed_name and _looks_like_person_name(str(parsed_name)):
+                        name = parsed_name
+                    elif hybrid_name and _looks_like_person_name(str(hybrid_name)):
+                        name = hybrid_name
+                    else:
+                        name = None
                     
                     # Get ID number based on document type
                     id_field_mapping = {
@@ -647,13 +694,22 @@ async def extract_document_preview(request: Dict[str, str]):
                     id_field = id_field_mapping.get(document_type)
                     if id_field:
                         id_number = parsed.get(id_field)
-                    
+                    if not id_number:
+                        id_number = (hybrid.get('fields', {}) or {}).get('id_number')
+
                     print(f"[Preview] Final - Name: {name}, ID: {id_number}")
-                    data_result = {'success': True}
+                    data_result = {'success': bool(name or id_number)}
                 else:
+                    id_number = (hybrid.get('fields', {}) or {}).get('id_number')
+                    hybrid_name = (hybrid.get('fields', {}) or {}).get('name')
+                    if hybrid_name and _looks_like_person_name(str(hybrid_name)):
+                        name = hybrid_name
                     error_msg = 'Failed to parse extracted text'
                     print(f"[Preview] Parse error: {error_msg}")
-                    data_result = {'success': False, 'error': error_msg}
+                    data_result = {
+                        'success': bool(name or id_number),
+                        'error': None if (name or id_number) else error_msg
+                    }
             else:
                 error_msg = ocr_result.get('error', 'OCR failed')
                 print(f"[Preview] OCR error: {error_msg}")
@@ -697,9 +753,13 @@ async def health_check():
     """Check API and service health status"""
     try:
         # Test services
+        face_service = get_document_processor().face_service
         services = {
             'paddleocr': 'operational',
-            'document_processor': 'operational'
+            'document_processor': 'operational',
+            'face_model': 'operational' if face_service else 'unavailable',
+            'fraud_detector': 'operational',
+            'quality_assessor': 'operational',
         }
 
         return HealthResponse(

@@ -85,7 +85,7 @@ const DocumentVerificationWorking = () => {
     if (!result?.authenticity) return null;
 
     const authenticityData = result.authenticity;
-    const validationData = result.validation || {};
+    const validationData = result.validation?.validation || result.validation || {};
     const reasons = [];
 
     if (validationData.appears_genuine === false) {
@@ -115,11 +115,16 @@ const DocumentVerificationWorking = () => {
     }
 
     const isAiGenerated = Boolean(authenticityData.is_ai_generated);
-    const hasQualityIssues = reasons.length > 0;
+    const reviewRecommended = Boolean(authenticityData.review_recommended);
+    const hasQualityIssues = reasons.length > 0 || reviewRecommended;
+    if (reviewRecommended) {
+      reasons.push('AI suggests manual review before approval');
+    }
 
     return {
       isAiGenerated,
       hasQualityIssues,
+      reviewRecommended,
       needsManualReview: !isAiGenerated && hasQualityIssues,
       detectionMethodLabel,
       qualityReasons: reasons,
@@ -127,9 +132,17 @@ const DocumentVerificationWorking = () => {
     };
   }, [result]);
 
+  const validationView = useMemo(() => {
+    if (!result?.validation) return null;
+    return result.validation?.validation || result.validation;
+  }, [result]);
+
   // Helper to safely extract error message
   const getErrorMessage = (error) => {
     if (typeof error === 'string') return error;
+    if (error?.code === 'ECONNABORTED' || String(error?.message || '').toLowerCase().includes('timeout')) {
+      return 'Request timed out while AI models were processing. Please try again.';
+    }
     if (error?.message) return error.message;
     if (error?.detail) {
       if (typeof error.detail === 'string') return error.detail;
@@ -213,7 +226,7 @@ const DocumentVerificationWorking = () => {
         authenticityResponse = await axios.post(
           `${API_BASE_URL}/api/documents/${documentId}/authenticity`,
           {},
-          { timeout: 15000 } // 15 second timeout
+          { timeout: 45000 } // 45 second timeout
         );
       } catch (err) {
         console.warn('Authenticity check skipped:', err.message);
@@ -231,7 +244,7 @@ const DocumentVerificationWorking = () => {
         validationResponse = await axios.post(
           `${API_BASE_URL}/api/documents/${documentId}/validate-authenticity?document_type=${documentType}`,
           {},
-          { timeout: 15000 } // 15 second timeout
+          { timeout: 45000 } // 45 second timeout
         );
       } catch (err) {
         console.warn('Validation check skipped:', err.message);
@@ -251,7 +264,7 @@ const DocumentVerificationWorking = () => {
           use_gemini: true,
           detect_face: false
         },
-        { timeout: 30000 } // 30 second timeout for processing
+        { timeout: 90000 } // 90 second timeout for processing
       );
 
       const jobId = processResponse.data.job_id;
@@ -279,7 +292,7 @@ const DocumentVerificationWorking = () => {
             const finalResult = {
               ...resultsResponse.data,
               authenticity: authenticityResponse?.data,
-              validation: validationResponse?.data
+              validation: validationResponse?.data?.validation || validationResponse?.data
             };
             
             setResult(finalResult);
@@ -760,14 +773,14 @@ const DocumentVerificationWorking = () => {
                           <p className="text-xs text-gray-400 font-medium">AI Confidence</p>
                         </div>
                         <p className="text-3xl font-bold text-white">
-                          {result.authenticity.confidence_score}%
+                          {result.authenticity.confidence_score ?? 0}%
                         </p>
                         <div className="mt-2 h-2 bg-gray-700 rounded-full overflow-hidden">
                           <div 
                             className={`h-full transition-all duration-1000 ${
-                              result.authenticity.confidence_score > 70 ? 'bg-green-400' : 'bg-yellow-400'
+                              result.authenticity.is_ai_generated ? 'bg-red-400' : (result.authenticity.confidence_score > 70 ? 'bg-green-400' : 'bg-yellow-400')
                             }`}
-                            style={{ width: `${result.authenticity.confidence_score}%` }}
+                            style={{ width: `${result.authenticity.confidence_score ?? 0}%` }}
                           />
                         </div>
                       </div>
@@ -862,7 +875,7 @@ const DocumentVerificationWorking = () => {
               )}
 
               {/* Document Validation */}
-              {result.validation && (
+              {validationView && (
                 <div className="bg-surface-dark rounded-xl border border-white/10 p-6">
                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary">fact_check</span>
@@ -872,52 +885,52 @@ const DocumentVerificationWorking = () => {
                     <div className="flex items-center justify-between p-3 bg-black/30 rounded-lg">
                       <span className="text-sm text-gray-400">Image Clear</span>
                       <span className={`flex items-center gap-1 text-sm font-medium ${
-                        result.validation.is_clear ? 'text-green-400' : 'text-red-400'
+                        validationView.is_clear ? 'text-green-400' : 'text-red-400'
                       }`}>
                         <span className="material-symbols-outlined text-base">
-                          {result.validation.is_clear ? 'check_circle' : 'cancel'}
+                          {validationView.is_clear ? 'check_circle' : 'cancel'}
                         </span>
-                        {result.validation.is_clear ? 'Yes' : 'No'}
+                        {validationView.is_clear ? 'Yes' : 'No'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-black/30 rounded-lg">
                       <span className="text-sm text-gray-400">Appears Genuine</span>
                       <span className={`flex items-center gap-1 text-sm font-medium ${
-                        result.validation.appears_genuine ? 'text-green-400' : 'text-red-400'
+                        validationView.appears_genuine ? 'text-green-400' : 'text-red-400'
                       }`}>
                         <span className="material-symbols-outlined text-base">
-                          {result.validation.appears_genuine ? 'check_circle' : 'cancel'}
+                          {validationView.appears_genuine ? 'check_circle' : 'cancel'}
                         </span>
-                        {result.validation.appears_genuine ? 'Yes' : 'No'}
+                        {validationView.appears_genuine ? 'Yes' : 'No'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-black/30 rounded-lg">
                       <span className="text-sm text-gray-400">Tampering</span>
                       <span className={`flex items-center gap-1 text-sm font-medium ${
-                        !result.validation.tampering_detected ? 'text-green-400' : 'text-red-400'
+                        !validationView.tampering_detected ? 'text-green-400' : 'text-red-400'
                       }`}>
                         <span className="material-symbols-outlined text-base">
-                          {!result.validation.tampering_detected ? 'check_circle' : 'warning'}
+                          {!validationView.tampering_detected ? 'check_circle' : 'warning'}
                         </span>
-                        {result.validation.tampering_detected ? 'Detected' : 'None'}
+                        {validationView.tampering_detected ? 'Detected' : 'None'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-black/30 rounded-lg">
                       <span className="text-sm text-gray-400">Format Valid</span>
                       <span className={`flex items-center gap-1 text-sm font-medium ${
-                        result.validation.format_valid ? 'text-green-400' : 'text-red-400'
+                        validationView.format_valid ? 'text-green-400' : 'text-red-400'
                       }`}>
                         <span className="material-symbols-outlined text-base">
-                          {result.validation.format_valid ? 'check_circle' : 'cancel'}
+                          {validationView.format_valid ? 'check_circle' : 'cancel'}
                         </span>
-                        {result.validation.format_valid ? 'Yes' : 'No'}
+                        {validationView.format_valid ? 'Yes' : 'No'}
                       </span>
                     </div>
                   </div>
-                  {result.validation.notes && (
+                  {validationView.notes && (
                     <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                       <p className="text-sm text-blue-400">
-                        <span className="font-semibold">Notes:</span> {result.validation.notes}
+                        <span className="font-semibold">Notes:</span> {validationView.notes}
                       </p>
                     </div>
                   )}

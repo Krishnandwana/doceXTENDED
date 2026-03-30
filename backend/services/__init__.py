@@ -2,7 +2,7 @@
 Services Package
 """
 
-from .paddle_ocr_service import get_paddle_service
+from ai.paddle_ocr_service import get_paddle_service
 from .document_parser import get_document_parser
 from .document_processor import get_document_processor
 

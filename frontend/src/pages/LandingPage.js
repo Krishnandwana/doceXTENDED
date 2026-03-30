@@ -81,10 +81,10 @@ const LandingPage = () => {
               </div>
               <h1 className="text-4xl font-extrabold text-white leading-[1.15] tracking-tight glow-text">
                 AI-Powered <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500">Document Verification</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500">ID Verification</span>
               </h1>
               <p className="text-gray-400 text-base leading-relaxed max-w-[320px] mx-auto font-medium">
-                Instant authentication for Aadhaar, PAN, and Driver's Licenses using advanced computer vision.
+                Instant ID authentication with face matching and liveness signals using advanced computer vision.
               </p>
             </div>
 
@@ -97,7 +97,7 @@ const LandingPage = () => {
                 <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 <span className="relative flex items-center justify-center gap-2">
                   <span className="material-icons text-primary group-hover:text-white transition-colors text-xl">upload_file</span>
-                  Upload Document
+                  Start ID Verification
                 </span>
               </button>
               <button 

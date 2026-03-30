@@ -302,7 +302,7 @@
                     const missing = [];
                     if (!image1Loaded) missing.push('Image 1');
                     if (!image2Loaded) missing.push('Image 2');
-                    updateStatus(`⚠️ Please select ${missing.join(' and ')}`, 'loading');
+                    updateStatus(`⚠️ Please provide ${missing.join(' and ')}`, 'loading');
                 }
             }
         }
@@ -349,7 +349,7 @@
                 await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
                 
                 modelsLoaded = true;
-                updateProgress('Models loaded! Now select two images to compare.');
+                updateProgress('Models loaded. Preparing verification...');
                 checkReadyToTest();
                 
                 console.log('✅ All models loaded successfully');

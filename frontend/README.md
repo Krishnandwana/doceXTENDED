@@ -5,7 +5,7 @@ React frontend used as a demo/operator interface for DocVerify.
 ## Purpose
 
 - demonstrate API flows for ID verification
-- test upload/process/status/results journey
+- test ID upload and preview extraction journey
 - test face matching using ID image and selfie
 
 ## Stack
@@ -36,9 +36,7 @@ PORT=3005
 ## API Endpoints Used
 
 - `POST /api/documents/upload`
-- `POST /api/documents/process`
-- `GET /api/documents/status/{job_id}`
-- `GET /api/documents/results/{document_id}`
+- `POST /api/documents/extract-preview`
 - `POST /api/face/match`
 - `GET /api/health`
 
@@ -46,4 +44,5 @@ PORT=3005
 
 This UI supports the API-first product plan for fintech startups.
 
-The API is the main product, and this frontend helps validate flows for document checks and our in-house face verification model.
+The API is the main product, and this frontend currently focuses on ID verification and face matching flows.
+Document analysis pages are temporarily disabled in the UI.

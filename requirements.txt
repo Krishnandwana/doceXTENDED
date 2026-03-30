@@ -8,9 +8,13 @@ pydantic-settings>=2.0.0
 # OCR - PaddleOCR
 paddleocr>=2.7.0.3
 paddlepaddle>=2.6.0
+rapidocr-onnxruntime>=1.3.20
 
 # Computer Vision (removed DeepFace - not used)
-# Using OpenCV Haar Cascade instead
+# FaceNet local pipeline
+facenet-pytorch>=2.6.0
+torch>=2.2.0
+torchvision>=0.17.0
 
 # Image Processing
 Pillow>=10.0.0

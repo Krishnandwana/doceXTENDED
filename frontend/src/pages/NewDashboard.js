@@ -4,14 +4,6 @@ import { useNavigate } from 'react-router-dom';
 const NewDashboard = () => {
   const navigate = useNavigate();
 
-  const handleFileSelect = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      // Handle file upload logic here
-      console.log('File selected:', file.name);
-    }
-  };
-
   return (
     <div className="dark">
       <div className="bg-background-light dark:bg-background-dark font-display text-gray-900 dark:text-white antialiased selection:bg-primary selection:text-white overflow-hidden">
@@ -34,12 +26,6 @@ const NewDashboard = () => {
                 className="group relative flex h-12 w-full items-center justify-center text-gray-500 hover:text-white transition-colors"
               >
                 <span className="material-symbols-outlined" title="ID Verification">badge</span>
-              </button>
-              <button 
-                onClick={() => navigate('/document-verification')}
-                className="group relative flex h-12 w-full items-center justify-center text-gray-500 hover:text-white transition-colors"
-              >
-                <span className="material-symbols-outlined" title="Document Verification">description</span>
               </button>
               <button 
                 onClick={() => navigate('/api-docs')}
@@ -94,7 +80,7 @@ const NewDashboard = () => {
               <div className="mx-auto max-w-2xl flex flex-col gap-6">
                 
                 {/* Quick Actions */}
-                <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <section className="grid grid-cols-1 gap-4 mb-6">
                   <button
                     onClick={() => navigate('/id-verification')}
                     className="group relative flex flex-col items-start rounded-xl border border-white/10 bg-gradient-to-br from-primary/10 to-transparent p-6 text-left transition-all hover:border-primary/50 hover:shadow-[0_0_20px_rgba(255,121,26,0.2)]"
@@ -105,41 +91,23 @@ const NewDashboard = () => {
                     <h3 className="text-lg font-bold text-white mb-2">ID Verification</h3>
                     <p className="text-sm text-gray-400">Face capture & matching with document authentication</p>
                   </button>
-
-                  <button
-                    onClick={() => navigate('/document-verification')}
-                    className="group relative flex flex-col items-start rounded-xl border border-white/10 bg-gradient-to-br from-blue-500/10 to-transparent p-6 text-left transition-all hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400 mb-4 group-hover:scale-110 transition-transform">
-                      <span className="material-symbols-outlined text-2xl">description</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-white mb-2">Document Analysis</h3>
-                    <p className="text-sm text-gray-400">AI-powered OCR and document verification</p>
-                  </button>
                 </section>
 
                 {/* Upload Dropzone */}
                 <section className="group relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/10 bg-surface-dark/50 px-6 py-10 text-center transition-all duration-300 hover:border-primary/50 hover:bg-surface-dark hover:shadow-[0_0_20px_rgba(255,121,26,0.1)]">
-                  <input
-                    type="file"
-                    id="file-upload"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                    accept=".pdf,.jpg,.jpeg,.png"
-                  />
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/5 text-primary shadow-[0_0_15px_rgba(255,121,26,0.1)] transition-transform duration-300 group-hover:scale-110 group-hover:shadow-[0_0_25px_rgba(255,121,26,0.3)]">
-                    <span className="material-symbols-outlined text-4xl">cloud_upload</span>
+                    <span className="material-symbols-outlined text-4xl">badge</span>
                   </div>
-                  <h2 className="text-lg font-bold text-white mb-1">Quick Upload</h2>
+                  <h2 className="text-lg font-bold text-white mb-1">Start ID Verification</h2>
                   <p className="text-sm text-gray-400 max-w-xs mx-auto mb-6">
-                    Drag and drop your documents here, or tap to browse securely.
+                    Capture live photo, match face with ID, and complete verification flow.
                   </p>
                   <button 
-                    onClick={() => document.getElementById('file-upload').click()}
+                    onClick={() => navigate('/id-verification')}
                     className="bg-primary hover:bg-orange-600 text-white font-bold py-2.5 px-6 rounded-lg text-sm transition-all shadow-[0_4px_14px_rgba(255,121,26,0.4)] hover:shadow-[0_6px_20px_rgba(255,121,26,0.6)] flex items-center gap-2"
                   >
-                    <span className="material-symbols-outlined text-[20px]">folder_open</span>
-                    Select File
+                    <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                    Continue
                   </button>
                 </section>
 
