@@ -172,6 +172,9 @@ class FaceDetectionService:
 
             # Calculate similarity percentage (inverse of cosine distance)
             similarity_percentage = (1 - face_distance) * 100
+            
+            # Apply 50% confidence threshold - faces only match if similarity >= 50%
+            is_match = is_match and similarity_percentage >= 50.0
 
             return {
                 'success': True,

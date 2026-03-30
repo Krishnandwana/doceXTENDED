@@ -354,29 +354,31 @@ const FaceMatching = () => {
                       strokeWidth="2.5"
                     />
                     <path
-                      className="text-primary drop-shadow-[0_0_4px_rgba(255,121,26,0.6)]"
+                      className={`${(result.similarity_percentage || 0) >= 50 ? 'text-primary' : 'text-red-500'} drop-shadow-[0_0_4px_rgba(255,121,26,0.6)]`}
                       d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                       fill="none"
                       stroke="currentColor"
-                      strokeDasharray={`${(result.match_score || 0) * 100}, 100`}
+                      strokeDasharray={`${result.similarity_percentage || 0}, 100`}
                       strokeLinecap="round"
                       strokeWidth="2.5"
                     />
                   </svg>
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
                     <div className="text-4xl font-bold text-white">
-                      {Math.round((result.match_score || 0) * 100)}%
+                      {Math.round(result.similarity_percentage || 0)}%
                     </div>
-                    <div className="text-sm text-gray-400">Match</div>
+                    <div className="text-sm text-gray-400">Similarity</div>
                   </div>
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">
-                  {result.is_match ? '✓ Faces Match' : '✗ No Match'}
+                  {result.faces_match ? '✓ Faces Match' : '✗ No Match'}
                 </h2>
                 <p className="text-gray-400">
-                  {result.is_match 
+                  {result.faces_match 
                     ? 'The faces match with high confidence'
-                    : 'The faces do not match'}
+                    : (result.similarity_percentage || 0) < 50 
+                      ? 'Similarity below 50% threshold'
+                      : 'The faces do not match'}
                 </p>
               </div>
 
@@ -424,12 +426,14 @@ const FaceMatching = () => {
                         <span className="material-symbols-outlined text-primary">speed</span>
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-white">Confidence Score</p>
-                        <p className="text-xs text-gray-400">Match reliability</p>
+                        <p className="text-sm font-semibold text-white">Similarity Score</p>
+                        <p className="text-xs text-gray-400">
+                          {(result.similarity_percentage || 0) >= 50 ? 'Above threshold (≥50%)' : 'Below threshold (<50%)'}
+                        </p>
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-bold text-white">
-                      {Math.round((result.confidence || 0) * 100)}%
+                    <span className={`text-xs font-mono font-bold ${(result.similarity_percentage || 0) >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                      {Math.round(result.similarity_percentage || 0)}%
                     </span>
                   </div>
                 </div>

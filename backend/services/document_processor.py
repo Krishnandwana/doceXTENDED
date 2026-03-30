@@ -3,14 +3,11 @@ Document Processor
 Main processing pipeline that orchestrates OCR, parsing, and validation
 """
 
-import os
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional
-from pathlib import Path
+from typing import Dict, Any
 
-from .gemini_ocr_service import get_gemini_service
-# from .paddle_ocr_service import get_paddle_service
+from .paddle_ocr_service import get_paddle_service
 from .document_parser import get_document_parser
 from .face_detection_service import get_face_service
 
@@ -20,8 +17,7 @@ class DocumentProcessor:
 
     def __init__(self):
         """Initialize document processor"""
-        self.gemini_service = get_gemini_service()
-        # self.paddle_service = get_paddle_service()
+        self.paddle_service = get_paddle_service()
         self.parser = get_document_parser()
         self.face_service = get_face_service()
 
@@ -33,12 +29,12 @@ class DocumentProcessor:
         detect_face: bool = True
     ) -> Dict[str, Any]:
         """
-        Process a document through the complete pipeline
+        Process a document through the complete pipeline.
 
         Args:
             image_path: Path to document image
             document_type: Type of document (aadhaar, pan, etc.)
-            use_gemini: Whether to use Gemini AI (default) or PaddleOCR
+            use_gemini: Deprecated flag kept for API compatibility
             detect_face: Whether to perform face detection
 
         Returns:
@@ -59,104 +55,50 @@ class DocumentProcessor:
         }
 
         try:
-            # Step 1: Authenticity Check
-            authenticity_result = self.gemini_service.check_image_authenticity(image_path)
-            if authenticity_result['success']:
-                result['authenticity_check'] = authenticity_result['authenticity']
-                if authenticity_result['authenticity'].get('is_ai_generated', False):
-                    result['warnings'].append("Image may be AI-generated.")
-            else:
+            # Step 1: Authenticity check (offline heuristic detector)
+            try:
+                from .offline_ai_detector import get_offline_detector
+                detector = get_offline_detector()
+                authenticity_result = detector.detect(image_path)
+                if authenticity_result.get('success'):
+                    result['authenticity_check'] = authenticity_result.get('authenticity', {})
+                    if result['authenticity_check'].get('is_ai_generated', False):
+                        result['warnings'].append("Image may be AI-generated.")
+                else:
+                    result['warnings'].append("Could not perform image authenticity check.")
+            except Exception:
                 result['warnings'].append("Could not perform image authenticity check.")
 
-            # Step 2: OCR Extraction
+            # Step 2: OCR extraction with PaddleOCR
             if use_gemini:
-                # Use Gemini for structured extraction
-                ocr_result = self.gemini_service.extract_structured_data(
-                    image_path,
-                    document_type
-                )
+                result['warnings'].append("`use_gemini` is deprecated; PaddleOCR is used.")
 
-                if ocr_result['success']:
-                    result['ocr_result'] = {
-                        'method': 'gemini',
-                        'raw_response': ocr_result.get('raw_response', ''),
-                        'success': True
-                    }
-                    result['parsed_data'] = ocr_result.get('parsed_data', {})
+            ocr_result = self.paddle_service.extract_text(image_path, preprocess=True)
+            if ocr_result.get('success'):
+                result['ocr_result'] = ocr_result
+                raw_text = ocr_result.get('raw_text', '')
+                result['parsed_data'] = self.parser.parse_document(raw_text, document_type)
+            else:
+                result['errors'].append(f"PaddleOCR failed: {ocr_result.get('error', 'Unknown error')}")
 
-                    # Also get validation from Gemini
-                    validation_result = self.gemini_service.validate_document(
-                        image_path,
-                        document_type
-                    )
-                    if validation_result['success']:
-                        gemini_validation = validation_result.get('validation', {})
-                        result['gemini_validation'] = gemini_validation
-
-                else:
-                    error_msg = ocr_result.get('error', 'Unknown error')
-                    result['errors'].append(f"Gemini OCR failed: {error_msg}")
-                    
-                    # If Gemini quota exceeded, use mock data for testing
-                    if 'quota' in error_msg.lower() or '429' in error_msg:
-                        result['warnings'].append("⚠️ Gemini API quota exceeded - Using mock data for testing")
-                        result['parsed_data'] = {
-                            'full_name': '[MOCK DATA - Gemini API Quota Exceeded]',
-                            'document_number': 'XXXX-XXXX-XXXX',
-                            'date_of_birth': 'DD/MM/YYYY',
-                            'address': 'Mock Address for Testing',
-                            'note': 'This is mock data because Gemini API quota is exceeded. Get a new API key at https://ai.google.dev/'
-                        }
-                        result['ocr_result'] = {
-                            'method': 'mock',
-                            'raw_response': 'Mock data - Gemini quota exceeded',
-                            'success': True
-                        }
-                        # Continue processing instead of failing
-                    elif not result['parsed_data']:
-                        result['warnings'].append("Using fallback processing due to Gemini error")
-                    # result['warnings'].append("Falling back to PaddleOCR")
-                    # use_gemini = False
-
-            # if not use_gemini:
-            #     # Fallback to PaddleOCR
-            #     ocr_result = self.paddle_service.extract_text(image_path, preprocess=True)
-
-            #     if ocr_result['success']:
-            #         result['ocr_result'] = ocr_result
-
-            #         # Parse the extracted text
-            #         parsed_data = self.parser.parse_document(
-            #             ocr_result['raw_text'],
-            #             document_type
-            #         )
-            #         result['parsed_data'] = parsed_data
-            #     else:
-            #         result['errors'].append(f"PaddleOCR failed: {ocr_result.get('error', 'Unknown error')}")
-
-            # Step 3: Validate Parsed Data
+            # Step 3: Validate parsed data
             if result['parsed_data']:
-                validation = self.parser.validate_document_data(
-                    result['parsed_data'],
-                    document_type
-                )
+                validation = self.parser.validate_document_data(result['parsed_data'], document_type)
                 result['validation'] = validation
 
                 if not validation['is_valid']:
                     result['errors'].extend(validation['errors'])
                 result['warnings'].extend(validation['warnings'])
 
-                # If it's a bill, verify the total
                 if document_type == 'bill':
                     bill_verification = self.parser.verify_bill_total(result['parsed_data'])
                     result['bill_verification'] = bill_verification
                     if bill_verification.get('success') and not bill_verification.get('is_total_correct'):
                         result['errors'].append("Bill total does not match the sum of line items.")
-
             else:
                 result['errors'].append("No data could be extracted from document")
 
-            # Step 4: Face Detection (only for ID documents)
+            # Step 4: Face detection for non-bill docs
             if detect_face and document_type != 'bill' and self.face_service:
                 face_result = self.face_service.detect_faces(image_path)
 
@@ -167,12 +109,10 @@ class DocumentProcessor:
                         'face_locations': face_result.get('face_locations', [])
                     }
 
-                    # Analyze face quality
                     quality_result = self.face_service.analyze_face_quality(image_path)
                     if quality_result['success']:
                         result['face_detection']['quality'] = quality_result
 
-                    # Basic liveness detection
                     liveness_result = self.face_service.detect_liveness(image_path)
                     if liveness_result['success']:
                         result['face_detection']['liveness'] = liveness_result
@@ -181,7 +121,7 @@ class DocumentProcessor:
             elif detect_face and document_type != 'bill' and not self.face_service:
                 result['warnings'].append("Face detection service not available")
 
-            # Step 5: Determine Overall Status
+            # Step 5: Determine overall status
             if result['errors']:
                 result['overall_status'] = 'completed_with_errors'
             elif result['warnings']:
@@ -201,25 +141,14 @@ class DocumentProcessor:
         live_photo_path: str,
         tolerance: float = 0.6
     ) -> Dict[str, Any]:
-        """
-        Verify if face in document matches live photo
-
-        Args:
-            document_image_path: Path to document with face
-            live_photo_path: Path to live photo
-            tolerance: Matching tolerance
-
-        Returns:
-            Dictionary containing verification results
-        """
+        """Verify if face in document matches live photo."""
         try:
             if not self.face_service:
                 return {
                     'success': False,
                     'error': 'Face detection service not available'
                 }
-                
-            # Compare faces
+
             comparison = self.face_service.compare_faces(
                 document_image_path,
                 live_photo_path,
@@ -232,20 +161,18 @@ class DocumentProcessor:
                     'error': comparison.get('error', 'Face comparison failed')
                 }
 
-            # Check liveness of live photo
             liveness = self.face_service.detect_liveness(live_photo_path)
+            faces_match = comparison['is_match'] and comparison['similarity_percentage'] >= 50.0
 
-            result = {
+            return {
                 'success': True,
-                'faces_match': comparison['is_match'],
+                'faces_match': faces_match,
                 'similarity_percentage': comparison['similarity_percentage'],
                 'face_distance': comparison['face_distance'],
                 'confidence': comparison['confidence'],
                 'liveness_check': liveness if liveness['success'] else None,
                 'timestamp': datetime.now().isoformat()
             }
-
-            return result
 
         except Exception as e:
             return {
@@ -258,16 +185,7 @@ class DocumentProcessor:
         documents: list[Dict[str, str]],
         use_gemini: bool = True
     ) -> Dict[str, Any]:
-        """
-        Process multiple documents in batch
-
-        Args:
-            documents: List of dicts with 'image_path' and 'document_type'
-            use_gemini: Whether to use Gemini AI
-
-        Returns:
-            Dictionary containing batch processing results
-        """
+        """Process multiple documents in batch."""
         results = []
         summary = {
             'total': len(documents),
@@ -303,15 +221,7 @@ class DocumentProcessor:
         }
 
     def generate_report(self, processing_result: Dict[str, Any]) -> str:
-        """
-        Generate a human-readable report from processing results
-
-        Args:
-            processing_result: Result from process_document
-
-        Returns:
-            Formatted report string
-        """
+        """Generate a human-readable report from processing results."""
         report_lines = [
             "=" * 60,
             "DOCUMENT VERIFICATION REPORT",
@@ -325,7 +235,6 @@ class DocumentProcessor:
             "-" * 60
         ]
 
-        # Add parsed data
         parsed_data = processing_result.get('parsed_data', {})
         if parsed_data:
             for key, value in parsed_data.items():
@@ -340,7 +249,6 @@ class DocumentProcessor:
             "-" * 60
         ])
 
-        # Add validation info
         validation = processing_result.get('validation', {})
         if validation:
             report_lines.append(f"Valid: {validation.get('is_valid', False)}")
@@ -355,7 +263,6 @@ class DocumentProcessor:
         else:
             report_lines.append("No validation performed")
 
-        # Add authenticity check info
         authenticity_check = processing_result.get('authenticity_check', {})
         if authenticity_check:
             report_lines.extend([
@@ -368,7 +275,6 @@ class DocumentProcessor:
                 f"Explanation: {authenticity_check.get('explanation', 'N/A')}"
             ])
 
-        # Add bill verification info
         bill_verification = processing_result.get('bill_verification', {})
         if bill_verification and bill_verification.get('success'):
             report_lines.extend([
@@ -382,7 +288,6 @@ class DocumentProcessor:
                 f"Discrepancy: {bill_verification.get('discrepancy')}"
             ])
 
-        # Add face detection info
         face_detection = processing_result.get('face_detection', {})
         if face_detection:
             report_lines.extend([
@@ -414,8 +319,9 @@ class DocumentProcessor:
 # Singleton instance
 _processor = None
 
+
 def get_document_processor() -> DocumentProcessor:
-    """Get or create DocumentProcessor instance"""
+    """Get or create DocumentProcessor instance."""
     global _processor
     if _processor is None:
         _processor = DocumentProcessor()

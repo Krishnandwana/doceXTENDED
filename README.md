@@ -1,288 +1,109 @@
-# DocVerify - Document Verification System
+﻿# DocVerify
 
-A comprehensive AI-powered document verification system that uses computer vision, OCR, and face recognition to authenticate Indian identity documents like PAN cards, Aadhaar cards, and more.
+DocVerify is an API-first identity verification platform for fintech startups.
 
-## 🌐 Live Demo
+It verifies identity documents, extracts structured ID data, and matches the face on the ID against a selfie using our in-house face verification model.
 
-- **Frontend**: [https://docu-verify-eight.vercel.app](https://docu-verify-eight.vercel.app)
-- **Backend API**: [https://docu-verify.onrender.com](https://docu-verify.onrender.com) *(optional)*
-- **API Documentation**: [https://docu-verify.onrender.com/docs](https://docu-verify.onrender.com/docs)
+## Product Direction
 
-⚠️ **Security Note**: The document verification feature uses direct Gemini API calls from the frontend. See [SECURITY.md](SECURITY.md) for important security considerations.
+- Build a fintech-ready verification API that teams can integrate into onboarding and KYC flows.
+- Provide reliable ID-to-selfie face verification through our own model pipeline.
+- Keep the system modular so OCR, parsing, fraud signals, and face checks can evolve independently.
 
-## 🚀 Features
+## Core Capabilities
 
-- **Document OCR**: Extract text from identity documents using Google's Gemini AI or PaddleOCR
-- **Face Detection**: Detect and extract faces from identity documents
-- **Face Matching**: Compare faces between documents for verification
-- **Multi-format Support**: Process various document formats (JPEG, PNG, PDF)
-- **REST API**: FastAPI-based backend for easy integration
-- **Web Interface**: Modern React frontend and Streamlit dashboard
-- **Real-time Processing**: Asynchronous document processing with status tracking
+- Document upload and processing for Indian IDs (`aadhaar`, `pan`, `driving_license`, `passport`, `voter_id`)
+- OCR extraction with PaddleOCR
+- Structured field parsing and rule validation
+- Face extraction and face-match workflows
+- Offline authenticity heuristics for tamper/AI-image risk signals
+- Async job tracking (`upload -> process -> status -> results`)
 
-## 🏗️ Architecture
+## API-First Architecture
 
-```
-DocVerify/
-├── backend/                 # FastAPI backend
-│   ├── api/                # API endpoints and models
-│   ├── services/           # Core processing services
-│   └── utils/              # Utility functions
-├── frontend/               # React web application
-├── data/                   # Data storage and uploads
-├── tests/                  # Test files
-└── streamlit_*.py         # Streamlit dashboard apps
+```text
+Client App (Fintech) -> DocVerify API (FastAPI) -> Verification Pipeline
+                                            -> OCR + Parsing + Validation
+                                            -> Face Verification (Proprietary Model)
+                                            -> Authenticity Heuristics
 ```
 
-## 🛠️ Technology Stack
+## Tech Stack
 
 ### Backend
-- **FastAPI** - High-performance async web framework
-- **OpenCV** - Computer vision and image processing
-- **face_recognition** - Face detection and matching
-- **Google Gemini AI** - Advanced OCR capabilities
-- **SQLAlchemy** - Database ORM
-- **Pydantic** - Data validation
+- FastAPI
+- Uvicorn
+- PaddleOCR + PaddlePaddle
+- OpenCV + Pillow + NumPy + SciPy
+- Pydantic + python-dotenv
 
-### Frontend
-- **React.js** - Modern web interface
-- **Streamlit** - Interactive dashboard
-- **Plotly** - Data visualization
+### Frontend (Demo/Operator UI)
+- React 19
+- React Router
+- Axios
+- Tailwind CSS
+- face-api.js + react-webcam
 
-### AI/ML
-- **Google Generative AI** - OCR and text extraction
-- **OpenCV** - Image preprocessing
-- **dlib** - Face landmark detection
-- **NumPy/SciPy** - Numerical computing
+## Repository Structure
 
-## 📋 Prerequisites
-
-- Python 3.8+
-- Node.js 16+ (for React frontend)
-- Google Gemini API key (for OCR service)
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/Krishnandwana/DocVerify.git
-cd DocVerify
+```text
+DOCUMENT-VERIFY/
+|- backend/        FastAPI app and processing services
+|- frontend/       React app for demo and operator flows
+|- docs/           Product + integration + API documentation
+|- data/           Uploaded and processed file storage
+|- requirements.txt
 ```
 
-### 2. Set Up Python Environment
+## Local Setup
 
 ```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On Linux/Mac:
-source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
+python run_backend.py
 ```
 
-### 3. Configure Environment
+Backend docs:
+- Swagger: `http://localhost:8000/docs`
+- Health: `http://localhost:8000/api/health`
 
-Create a `.env` file in the root directory:
-
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### 4. Start the Application
-
-#### Option A: Start All Services at Once
-```bash
-chmod +x start_all.sh
-./start_all.sh
-```
-
-#### Option B: Start Services Individually
-
-**Backend API:**
-```bash
-chmod +x start_backend.sh
-./start_backend.sh
-# Or manually: uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**React Frontend:**
-```bash
-chmod +x start_frontend.sh
-./start_frontend.sh
-```
-
-**Streamlit Dashboard:**
-```bash
-chmod +x run_streamlit.sh
-./run_streamlit.sh
-# Or manually: streamlit run streamlit_app.py
-```
-
-### 5. Access the Applications
-
-**Local Development:**
-- **API Documentation**: http://localhost:8000/docs
-- **React Frontend**: http://localhost:3005
-- **Streamlit Dashboard**: http://localhost:8501
-
-**Production:**
-- **Frontend**: https://docu-verify-eight.vercel.app
-- **Backend API**: https://docu-verify.onrender.com
-- **API Docs**: https://docu-verify.onrender.com/docs
-
-## 🔧 API Usage
-
-### Upload and Process Document
+Frontend:
 
 ```bash
-curl -X POST "http://localhost:8000/upload" \
-  -H "accept: application/json" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@your_document.jpg"
+cd frontend
+npm install
+npm start
 ```
 
-### Get Processing Status
+## API Endpoints (Current)
 
-```bash
-curl -X GET "http://localhost:8000/status/{job_id}" \
-  -H "accept: application/json"
-```
+- `POST /api/documents/upload`
+- `POST /api/documents/process`
+- `GET /api/documents/status/{job_id}`
+- `GET /api/documents/results/{document_id}`
+- `POST /api/face/match`
+- `POST /api/documents/{document_id}/authenticity`
+- `POST /api/documents/{document_id}/validate-authenticity`
+- `POST /api/documents/extract-preview`
+- `GET /api/health`
 
-### Verify Two Documents
+## Fintech Integration Goal
 
-```bash
-curl -X POST "http://localhost:8000/verify" \
-  -H "accept: application/json" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file1=@document1.jpg" \
-  -F "file2=document2.jpg"
-```
+DocVerify is being prepared as a verification API product for fintech startups that need:
 
-## 📊 Supported Document Types
+- Fast KYC onboarding checks
+- ID document data extraction
+- ID face vs selfie face matching via our own face model
+- Explainable verification outcomes for compliance workflows
 
-- **PAN Card** - Permanent Account Number
-- **Aadhaar Card** - Unique Identity Number
-- **Driving License** - Driver's License
-- **Passport** - Indian Passport
-- **Voter ID** - Election Commission ID
+## Documentation Index
 
-## 🧪 Testing
+- `QUICK_START.md`
+- `backend/README.md`
+- `frontend/README.md`
+- `docs/API_DOCUMENTATION.md`
+- `docs/PROJECT_OVERVIEW.md`
+- `docs/README_ML.md`
 
-Run the test suite:
+## License
 
-```bash
-# Run all tests
-python -m pytest tests/
-
-# Run specific test file
-python -m pytest tests/test_ml_components.py
-
-# Test OCR functionality
-python ocr_test.py
-
-# Debug API endpoints
-python debug_api.py
-```
-
-## 🔍 Key Components
-
-### Document Processor
-- Image preprocessing and enhancement
-- Text extraction using OCR
-- Data validation and structuring
-
-### Face Detection Service
-- Face detection in documents
-- Face encoding generation
-- Face comparison and matching
-
-### OCR Services
-- **Gemini OCR**: Advanced AI-powered text extraction
-- **Paddle OCR**: Fallback OCR service
-- Multi-language support for Indian documents
-
-## 🛡️ Security Features
-
-- Input validation and sanitization
-- File type and size restrictions
-- Secure file handling
-- API rate limiting (planned)
-- Error handling and logging
-
-## 📈 Performance
-
-- **Async Processing**: Non-blocking document processing
-- **Background Tasks**: Queue-based job processing  
-- **Caching**: Processed results caching
-- **Optimization**: Image compression and optimization
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 Documentation
-
-Detailed documentation is available:
-- [API_DOCUMENTATION.md](API_DOCUMENTATION.md) - Complete API reference
-- [CONNECTION_GUIDE.md](CONNECTION_GUIDE.md) - Integration guide
-- [STREAMLIT_GUIDE.md](STREAMLIT_GUIDE.md) - Dashboard usage
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment guide (backend)
-- [VERCEL_SETUP.md](VERCEL_SETUP.md) - Vercel deployment guide (frontend)
-- **[SECURITY.md](SECURITY.md) - Security considerations (IMPORTANT)**
-- [Frontend README](frontend/README.md) - Frontend setup and development
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Import Errors**: Ensure all dependencies are installed
-2. **API Key Issues**: Verify Gemini API key in `.env` file
-3. **Port Conflicts**: Change ports in configuration files
-4. **Memory Issues**: Reduce image processing batch size
-
-### Logs
-
-Check application logs:
-- API logs: `api.log`
-- Console output for debugging
-
-## 🔮 Roadmap
-
-- [ ] Database integration (PostgreSQL/MongoDB)
-- [ ] User authentication and authorization
-- [ ] Batch document processing
-- [ ] Advanced fraud detection
-- [ ] Mobile app integration
-- [ ] Cloud deployment guides
-- [ ] Performance monitoring
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👥 Authors
-
-- **Krish Anandwana** - Initial work - [Krishnandwana](https://github.com/Krishnandwana)
-
-## 🙏 Acknowledgments
-
-- Google Gemini AI for OCR capabilities
-- OpenCV community for computer vision tools
-- FastAPI team for the excellent web framework
-- Face recognition library contributors
-
----
-
-⭐ **Star this repository if you find it helpful!**
-
-For questions or support, please [open an issue](https://github.com/Krishnandwana/DocVerify/issues).
+MIT

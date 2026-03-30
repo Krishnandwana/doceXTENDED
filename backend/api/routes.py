@@ -167,7 +167,7 @@ async def process_document(
 
     - **document_id**: ID of uploaded document
     - **document_type**: Type of document (aadhaar, pan, driving_license, passport, voter_id)
-    - **use_gemini**: Use Gemini AI for OCR (default: true)
+    - **use_gemini**: Deprecated flag (PaddleOCR is used)
     - **detect_face**: Perform face detection (default: true)
     """
     try:
@@ -372,7 +372,7 @@ async def delete_document(document_id: str):
 async def check_document_authenticity(document_id: str):
     """
     Check if document is authentic (not AI-generated or tampered)
-    Uses Gemini AI first, falls back to offline detector if unavailable
+    Uses offline heuristic detector
     
     - **document_id**: ID of the uploaded document
     """
@@ -384,18 +384,9 @@ async def check_document_authenticity(document_id: str):
         file_info = uploaded_files[document_id]
         file_path = file_info['file_path']
         
-        # Try Gemini service first
-        from ..services.gemini_ocr_service import get_gemini_service
-        gemini = get_gemini_service()
-        
-        ai_check = gemini.check_image_authenticity(file_path)
-        
-        # If Gemini fails (quota/error), use offline detector as fallback
-        if not ai_check.get('success'):
-            print(f"[Authenticity] Gemini failed: {ai_check.get('error')}. Using offline detector...")
-            from ..services.offline_ai_detector import get_offline_detector
-            offline_detector = get_offline_detector()
-            ai_check = offline_detector.detect(file_path)
+        from ..services.offline_ai_detector import get_offline_detector
+        offline_detector = get_offline_detector()
+        ai_check = offline_detector.detect(file_path)
         
         # Return combined result
         if ai_check.get('success'):
@@ -426,7 +417,7 @@ async def check_document_authenticity(document_id: str):
 @router.post("/api/documents/{document_id}/validate-authenticity")
 async def validate_document_authenticity(document_id: str, document_type: str):
     """
-    Validate document authenticity and quality using Gemini AI
+    Validate document quality using local heuristics
     
     - **document_id**: ID of the uploaded document
     - **document_type**: Type of document for validation
@@ -439,26 +430,41 @@ async def validate_document_authenticity(document_id: str, document_type: str):
         file_info = uploaded_files[document_id]
         file_path = file_info['file_path']
         
-        # Use Gemini service for validation
-        from ..services.gemini_ocr_service import get_gemini_service
-        gemini = get_gemini_service()
-        
-        validation_result = gemini.validate_document(file_path, document_type)
-        
-        if validation_result.get('success'):
-            validation_data = validation_result.get('validation', {})
-            return {
-                'success': True,
-                'document_id': document_id,
-                'validation': validation_data,
-                'timestamp': datetime.now().isoformat()
-            }
-        else:
+        import cv2
+
+        image = cv2.imread(file_path)
+        if image is None:
             return {
                 'success': False,
-                'error': validation_result.get('error', 'Validation failed'),
+                'error': 'Could not read document image',
                 'timestamp': datetime.now().isoformat()
             }
+
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+        is_clear = sharpness > 90
+
+        from ..services.offline_ai_detector import get_offline_detector
+        detector = get_offline_detector()
+        ai_result = detector.detect(file_path)
+        authenticity = ai_result.get('authenticity', {}) if ai_result.get('success') else {}
+        tampering_detected = bool(authenticity.get('is_ai_generated', False))
+
+        validation_data = {
+            'is_clear': is_clear,
+            'appears_genuine': not tampering_detected,
+            'tampering_detected': tampering_detected,
+            'format_valid': True,
+            'confidence_score': int(authenticity.get('confidence_score', min(99, max(35, sharpness // 3)))),
+            'notes': f'Local validation for {document_type}. Sharpness={sharpness:.2f}'
+        }
+
+        return {
+            'success': True,
+            'document_id': document_id,
+            'validation': validation_data,
+            'timestamp': datetime.now().isoformat()
+        }
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
@@ -601,22 +607,22 @@ async def extract_document_preview(request: Dict[str, str]):
                 traceback.print_exc()
                 face_result = {'success': False, 'error': str(face_err)}
         
-        # Extract text and data using EasyOCR + Document Parser
+        # Extract text and data using PaddleOCR + Document Parser
         name = None
         id_number = None
         data_result = {'success': False, 'error': 'Data extraction not attempted'}
         
         try:
             print(f"[Preview] Extracting text from document type: {document_type}")
-            from ..services.easyocr_service import get_easyocr_service
+            from ..services.paddle_ocr_service import get_paddle_service
             from ..services.document_parser import DocumentParser
             
-            ocr_service = get_easyocr_service()
+            ocr_service = get_paddle_service()
             parser = DocumentParser()
             
-            # Extract text using EasyOCR
-            print(f"[Preview] Using EasyOCR for text extraction...")
-            ocr_result = ocr_service.extract_text(document_path)
+            # Extract text using PaddleOCR
+            print(f"[Preview] Using PaddleOCR for text extraction...")
+            ocr_result = ocr_service.extract_text(document_path, preprocess=True)
             print(f"[Preview] OCR success: {ocr_result.get('success')}")
             
             if ocr_result.get('success') and ocr_result.get('raw_text'):
@@ -692,7 +698,6 @@ async def health_check():
     try:
         # Test services
         services = {
-            'gemini': 'operational',
             'paddleocr': 'operational',
             'document_processor': 'operational'
         }

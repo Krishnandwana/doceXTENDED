@@ -34,7 +34,7 @@ class ProcessDocumentRequest(BaseModel):
     """Request to process a document"""
     document_id: str = Field(..., description="Unique document ID")
     document_type: DocumentType = Field(..., description="Type of document")
-    use_gemini: bool = Field(True, description="Use Gemini AI for OCR (fallback to PaddleOCR if False)")
+    use_gemini: bool = Field(True, description="Deprecated flag (PaddleOCR is used)")
     detect_face: bool = Field(True, description="Perform face detection")
 
 
