@@ -1,8 +1,3 @@
-"""
-Face liveness service.
-Baseline anti-spoof heuristics for single-frame and multi-frame inputs.
-"""
-
 from typing import Any, Dict, List
 
 import cv2
@@ -32,7 +27,6 @@ class FaceLivenessService:
         edge_density = float(np.mean(edges > 0))
         highlight_ratio = float(np.mean(roi > 245))
 
-        # Simple heuristics: live faces usually show textured skin and moderate highlights.
         live_score = 0.0
         live_score += min(lap_var / 300.0, 1.0) * 0.45
         live_score += min(edge_density / 0.2, 1.0) * 0.35
@@ -101,4 +95,3 @@ def get_face_liveness_service() -> FaceLivenessService:
     if _liveness_service is None:
         _liveness_service = FaceLivenessService()
     return _liveness_service
-

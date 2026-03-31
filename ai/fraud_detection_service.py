@@ -1,7 +1,3 @@
-"""
-Fraud detection service for tampering and AI-generation signals.
-"""
-
 import os
 from typing import Any, Dict
 
@@ -23,7 +19,6 @@ class FraudDetectionService:
         edge_density = self._edge_density(gray)
         metadata_present = self._has_metadata(image_path)
 
-        # Normalize into risk contributions (0..1), calibrated for document photos/scans.
         blockiness_risk = np.clip((blocks - 32.0) / 28.0, 0.0, 1.0)
         noise_risk = np.clip((8.0 - noise) / 8.0, 0.0, 1.0)
         saturation_risk = np.clip((saturation_ratio - 0.11) / 0.15, 0.0, 1.0)
@@ -125,7 +120,7 @@ class FraudDetectionService:
 
     @staticmethod
     def _has_metadata(image_path: str) -> bool:
-        # Minimal placeholder heuristic.
+                                                          
         return os.path.getsize(image_path) > 32_000
 
     @staticmethod

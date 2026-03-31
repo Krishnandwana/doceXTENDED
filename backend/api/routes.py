@@ -1,38 +1,43 @@
-"""
-FastAPI Routes for Document Verification API
-"""
+\
+\
+   
 
 import os
 import uuid
 import shutil
+import tempfile
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
+import cv2
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 
+from ai.face_liveness_service import get_face_liveness_service
 from ai.fraud_detection_service import get_fraud_detection_service
+from ai.secondry_ocr_service import get_secondry_ocr_service
 from ai.quality_assessment_service import get_quality_assessment_service
 from .models import *
 from ..services.document_processor import get_document_processor
 
-# Initialize router
+                   
 router = APIRouter()
 
-# In-memory storage (replace with database in production)
+                                                         
 uploaded_files: Dict[str, Dict[str, Any]] = {}
 processing_jobs: Dict[str, Dict[str, Any]] = {}
 processing_results: Dict[str, Dict[str, Any]] = {}
 
-# Directories
+             
 UPLOAD_DIR = Path("data/uploads")
 PROCESSED_DIR = Path("data/processed")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
-# Allowed file extensions
+                         
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_FILE_SIZE = 10 * 1024 * 1024         
 
 
 def _looks_like_person_name(value: str) -> bool:
@@ -58,9 +63,75 @@ def _looks_like_person_name(value: str) -> bool:
     return len(text.split()) >= 2
 
 
+def _normalize_name_for_match(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z\s]", " ", str(value or ""))
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+    return cleaned
+
+
+def _normalize_id_for_match(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]", "", str(value or "")).upper()
+
+
+def _name_exists_in_ocr(entered_name: str, ocr_lines: list[str]) -> bool:
+    if not entered_name:
+        return False
+    normalized_input = _normalize_name_for_match(entered_name)
+    if not normalized_input:
+        return False
+
+    input_tokens = [t for t in normalized_input.split() if t]
+    if not input_tokens:
+        return False
+
+    for line in ocr_lines:
+        norm_line = _normalize_name_for_match(line)
+        if not norm_line:
+            continue
+        if normalized_input in norm_line or norm_line in normalized_input:
+            return True
+        matched_tokens = sum(1 for t in input_tokens if t in norm_line)
+        if matched_tokens >= max(2, len(input_tokens) - 1):
+            return True
+    return False
+
+
+def _id_exists_in_ocr(entered_id: str, ocr_text: str) -> bool:
+    if not entered_id:
+        return False
+    normalized_input = _normalize_id_for_match(entered_id)
+    if not normalized_input:
+        return False
+    normalized_ocr = _normalize_id_for_match(ocr_text)
+    if not normalized_ocr:
+        return False
+    if normalized_input in normalized_ocr:
+        return True
+                                                                                   
+    if len(normalized_input) >= 8:
+        overlap = sum(1 for a, b in zip(normalized_input, normalized_ocr) if a == b)
+        return overlap >= int(len(normalized_input) * 0.8)
+    return False
+
+
+def _resolve_document_path(document_id: str) -> str:
+                                                             
+    if document_id in uploaded_files:
+        return uploaded_files[document_id]['file_path']
+
+    print(f"[Resolve] Document not in memory, checking disk for: {document_id}")
+    possible_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']
+    for ext in possible_extensions:
+        potential_path = UPLOAD_DIR / f"{document_id}{ext}"
+        if potential_path.exists():
+            print(f"[Resolve] Found document on disk: {potential_path}")
+            return str(potential_path)
+    raise HTTPException(status_code=404, detail="Document not found in memory or on disk")
+
+
 def validate_file(file: UploadFile) -> None:
-    """Validate uploaded file"""
-    # Check file extension
+                                
+                          
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -70,7 +141,7 @@ def validate_file(file: UploadFile) -> None:
 
 
 def process_document_background(job_id: str, document_id: str, options: Dict[str, Any]):
-    """Background task to process document"""
+                                             
     try:
         print(f"\n{'='*60}")
         print(f"[Processing] STARTING BACKGROUND TASK")
@@ -79,13 +150,13 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
         print(f"[Processing] Options: {options}")
         print(f"{'='*60}\n")
         
-        # Update job status
+                           
         processing_jobs[job_id]['status'] = ProcessingStatus.PROCESSING
         processing_jobs[job_id]['progress'] = 25
         
         print(f"[Processing] Starting job {job_id} for document {document_id}")
 
-        # Get file path
+                       
         file_info = uploaded_files.get(document_id)
         if not file_info:
             processing_jobs[job_id]['status'] = ProcessingStatus.FAILED
@@ -96,7 +167,7 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
         print(f"[Processing] Processing document at: {file_info['file_path']}")
         processing_jobs[job_id]['progress'] = 40
 
-        # Process document
+                          
         processor = get_document_processor()
         result = processor.process_document(
             image_path=file_info['file_path'],
@@ -107,7 +178,7 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
         
         print(f"[Processing] Document processed successfully. Status: {result.get('overall_status')}")
 
-        # Check if processing actually succeeded
+                                                
         if result.get('overall_status') == 'failed':
             processing_jobs[job_id]['status'] = ProcessingStatus.FAILED
             error_messages = result.get('errors', [])
@@ -116,13 +187,13 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
             print(f"[Processing] Job {job_id} failed: {processing_jobs[job_id]['message']}")
             return
 
-        # Update progress
+                         
         processing_jobs[job_id]['progress'] = 100
         processing_jobs[job_id]['status'] = ProcessingStatus.COMPLETED
         processing_jobs[job_id]['completed_at'] = datetime.now().isoformat()
         processing_jobs[job_id]['message'] = 'Processing completed successfully'
 
-        # Store result
+                      
         processing_results[document_id] = result
         print(f"[Processing] Job {job_id} completed successfully")
 
@@ -137,28 +208,28 @@ def process_document_background(job_id: str, document_id: str, options: Dict[str
 
 @router.post("/api/documents/upload", response_model=UploadResponse)
 async def upload_document(file: UploadFile = File(...)):
-    """
-    Upload a document image for processing
-
-    - **file**: Document image file (JPEG, PNG, BMP, TIFF)
-    """
+\
+\
+\
+\
+       
     try:
-        # Validate file
+                       
         validate_file(file)
 
-        # Generate unique document ID
+                                     
         document_id = str(uuid.uuid4())
 
-        # Create file path
+                          
         file_ext = Path(file.filename).suffix
         safe_filename = f"{document_id}{file_ext}"
         file_path = UPLOAD_DIR / safe_filename
 
-        # Save file
+                   
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Store file info
+                         
         upload_timestamp = datetime.now().isoformat()
         uploaded_files[document_id] = {
             'document_id': document_id,
@@ -188,20 +259,20 @@ async def process_document(
     request: ProcessDocumentRequest,
     background_tasks: BackgroundTasks
 ):
-    """
-    Start processing a document
-
-    - **document_id**: ID of uploaded document
-    - **document_type**: Type of document (aadhaar, pan, driving_license, passport, voter_id)
-    - **use_gemini**: Deprecated flag (PaddleOCR is used)
-    - **detect_face**: Perform face detection (default: true)
-    """
+\
+\
+\
+\
+\
+\
+\
+       
     try:
-        # Check if document exists
+                                  
         if request.document_id not in uploaded_files:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Create job
+                    
         job_id = str(uuid.uuid4())
         started_at = datetime.now().isoformat()
 
@@ -215,7 +286,7 @@ async def process_document(
             'completed_at': None
         }
 
-        # Start background processing
+                                     
         background_tasks.add_task(
             process_document_background,
             job_id,
@@ -243,11 +314,11 @@ async def process_document(
 
 @router.get("/api/documents/status/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
-    """
-    Get processing job status
-
-    - **job_id**: ID of the processing job
-    """
+\
+\
+\
+\
+       
     if job_id not in processing_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
 
@@ -266,13 +337,13 @@ async def get_job_status(job_id: str):
 
 @router.get("/api/documents/results/{document_id}", response_model=DocumentResultResponse)
 async def get_document_results(document_id: str):
-    """
-    Get document processing results
-
-    - **document_id**: ID of the document
-    """
+\
+\
+\
+\
+       
     if document_id not in processing_results:
-        # Check if document exists
+                                  
         if document_id not in uploaded_files:
             raise HTTPException(status_code=404, detail="Document not found")
         else:
@@ -298,12 +369,12 @@ async def get_document_results(document_id: str):
 
 @router.post("/api/documents/validate", response_model=ValidationResult)
 async def validate_document_data(request: ValidateDataRequest):
-    """
-    Validate document data against type-specific rules
-
-    - **document_data**: Document data fields
-    - **document_type**: Type of document
-    """
+\
+\
+\
+\
+\
+       
     try:
         from ..services.document_parser import get_document_parser
         parser = get_document_parser()
@@ -321,8 +392,8 @@ async def validate_document_data(request: ValidateDataRequest):
 
 @router.get("/api/documents/types", response_model=SupportedTypesResponse)
 async def get_supported_types():
-    """
-    Get list of supported document types and their required fields"""
+\
+                                                                     
     from ..services.document_parser import DocumentParser
 
     parser = DocumentParser()
@@ -340,11 +411,11 @@ async def get_supported_types():
 
 @router.get("/api/documents/report/{document_id}", response_model=ReportResponse)
 async def generate_report(document_id: str):
-    """
-    Generate a detailed processing report for a document
-
-    - **document_id**: ID of the document
-    """
+\
+\
+\
+\
+       
     if document_id not in processing_results:
         if document_id not in uploaded_files:
             raise HTTPException(status_code=404, detail="Document not found")
@@ -365,22 +436,22 @@ async def generate_report(document_id: str):
 
 @router.delete("/api/documents/{document_id}")
 async def delete_document(document_id: str):
-    """
-    Delete a document and its associated data
-
-    - **document_id**: ID of the document to delete
-    """
+\
+\
+\
+\
+       
     if document_id not in uploaded_files:
         raise HTTPException(status_code=404, detail="Document not found")
 
     try:
-        # Delete file
+                     
         file_info = uploaded_files[document_id]
         file_path = Path(file_info['file_path'])
         if file_path.exists():
             file_path.unlink()
 
-        # Remove from storage
+                             
         del uploaded_files[document_id]
         if document_id in processing_results:
             del processing_results[document_id]
@@ -397,14 +468,14 @@ async def delete_document(document_id: str):
 
 @router.post("/api/documents/{document_id}/authenticity")
 async def check_document_authenticity(document_id: str):
-    """
-    Check if document is authentic (not AI-generated or tampered)
-    Uses AI fraud detector from top-level `ai` package.
-    
-    - **document_id**: ID of the uploaded document
-    """
+\
+\
+\
+\
+\
+       
     try:
-        # Get document file info
+                                
         if document_id not in uploaded_files:
             raise HTTPException(status_code=404, detail="Document not found")
         
@@ -447,14 +518,14 @@ async def check_document_authenticity(document_id: str):
 
 @router.post("/api/documents/{document_id}/validate-authenticity")
 async def validate_document_authenticity(document_id: str, document_type: str):
-    """
-    Validate document quality using AI quality + fraud heuristics
-    
-    - **document_id**: ID of the uploaded document
-    - **document_type**: Type of document for validation
-    """
+\
+\
+\
+\
+\
+       
     try:
-        # Get document file info
+                                
         if document_id not in uploaded_files:
             raise HTTPException(status_code=404, detail="Document not found")
         
@@ -515,12 +586,12 @@ async def validate_document_authenticity(document_id: str, document_type: str):
 
 @router.post("/api/face/match")
 async def match_faces(request: Dict[str, str]):
-    """
-    Match faces between document and selfie
-    
-    - **document_id**: ID of the document with face
-    - **selfie_id**: ID of the selfie image
-    """
+\
+\
+\
+\
+\
+       
     try:
         document_id = request.get('document_id')
         selfie_id = request.get('selfie_id')
@@ -528,7 +599,7 @@ async def match_faces(request: Dict[str, str]):
         if not document_id or not selfie_id:
             raise HTTPException(status_code=400, detail="Both document_id and selfie_id are required")
         
-        # Check if both documents exist
+                                       
         if document_id not in uploaded_files:
             raise HTTPException(status_code=404, detail="Document not found")
         if selfie_id not in uploaded_files:
@@ -537,10 +608,10 @@ async def match_faces(request: Dict[str, str]):
         document_path = uploaded_files[document_id]['file_path']
         selfie_path = uploaded_files[selfie_id]['file_path']
         
-        # Get document processor and verify faces
+                                                 
         processor = get_document_processor()
         
-        # Check if face service is available
+                                            
         if not processor.face_service:
             raise HTTPException(status_code=503, detail="Face detection service not available")
         
@@ -563,14 +634,114 @@ async def match_faces(request: Dict[str, str]):
         raise HTTPException(status_code=500, detail=f"Face matching failed: {str(e)}")
 
 
+@router.post("/api/face/liveness-video")
+async def check_liveness_video(file: UploadFile = File(...)):
+\
+\
+\
+\
+       
+    try:
+        ext = Path(file.filename or "liveness.webm").suffix.lower()
+        if ext not in {".webm", ".mp4", ".mov", ".m4v"}:
+            raise HTTPException(status_code=400, detail="Invalid video type. Allowed: .webm, .mp4, .mov, .m4v")
+
+        video_path = None
+        temp_frame_paths = []
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_video:
+            video_path = tmp_video.name
+            shutil.copyfileobj(file.file, tmp_video)
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise HTTPException(status_code=400, detail="Could not read video stream")
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        duration_seconds = float(frame_count / fps) if fps and fps > 0 else 0.0
+
+        if frame_count <= 0:
+            cap.release()
+            raise HTTPException(status_code=400, detail="Video contains no frames")
+
+                                                             
+        samples = min(10, max(2, frame_count))
+        indexes = sorted(set(int(i * (frame_count - 1) / (samples - 1)) for i in range(samples)))
+
+        with tempfile.TemporaryDirectory() as frame_dir:
+            for idx, frame_index in enumerate(indexes):
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    continue
+                frame_path = str(Path(frame_dir) / f"frame_{idx:02d}.jpg")
+                cv2.imwrite(frame_path, frame)
+                temp_frame_paths.append(frame_path)
+            cap.release()
+
+            if len(temp_frame_paths) < 2:
+                raise HTTPException(status_code=400, detail="Insufficient usable frames for liveness analysis")
+
+            liveness_service = get_face_liveness_service()
+            sequence_result = liveness_service.analyze_frame_sequence(temp_frame_paths)
+
+                                                                       
+            middle_frame = temp_frame_paths[len(temp_frame_paths) // 2]
+            single_result = liveness_service.analyze_single_frame(middle_frame)
+
+        if not sequence_result.get("success"):
+            raise HTTPException(status_code=400, detail=sequence_result.get("error", "Liveness analysis failed"))
+
+        if not single_result.get("success"):
+                                                                      
+            single_result = {
+                "success": False,
+                "is_live": False,
+                "confidence": 0.0,
+                "error": single_result.get("error", "Single-frame liveness check failed"),
+            }
+
+        seq_conf = float(sequence_result.get("confidence", 0.0))
+        frm_conf = float(single_result.get("confidence", 0.0))
+        combined_conf = min(1.0, max(0.0, (0.65 * seq_conf) + (0.35 * frm_conf)))
+        is_live = bool(sequence_result.get("is_live", False) and (single_result.get("is_live", False) or seq_conf >= 0.5))
+
+        return {
+            "success": True,
+            "is_live": is_live,
+            "confidence": round(combined_conf, 4),
+            "duration_seconds": round(duration_seconds, 2),
+            "frame_count": frame_count,
+            "sampled_frames": len(temp_frame_paths),
+            "sequence": sequence_result,
+            "single_frame": single_result,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Liveness video check failed: {str(e)}")
+    finally:
+        try:
+            if 'cap' in locals() and cap is not None:
+                cap.release()
+        except Exception:
+            pass
+        try:
+            if 'video_path' in locals() and video_path and os.path.exists(video_path):
+                os.remove(video_path)
+        except Exception:
+            pass
+
+
 @router.post("/api/documents/extract-preview")
 async def extract_document_preview(request: Dict[str, str]):
-    """
-    Extract face, name, and ID number from document for preview/confirmation
-    
-    - **document_id**: ID of the uploaded document
-    - **document_type**: Type of document (aadhaar, pan, driving_license, passport, voter_id)
-    """
+\
+\
+\
+\
+\
+       
     try:
         document_id = request.get('document_id')
         document_type = request.get('document_type', 'pan')
@@ -578,33 +749,17 @@ async def extract_document_preview(request: Dict[str, str]):
         if not document_id:
             raise HTTPException(status_code=400, detail="document_id is required")
         
-        # Check if document exists in memory or on disk
-        if document_id in uploaded_files:
-            document_path = uploaded_files[document_id]['file_path']
-        else:
-            # Server may have reloaded - check if file exists on disk
-            print(f"[Preview] Document not in memory, checking disk for: {document_id}")
-            possible_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']
-            document_path = None
-            
-            for ext in possible_extensions:
-                potential_path = UPLOAD_DIR / f"{document_id}{ext}"
-                if potential_path.exists():
-                    document_path = str(potential_path)
-                    print(f"[Preview] Found document on disk: {document_path}")
-                    break
-            
-            if not document_path:
-                raise HTTPException(status_code=404, detail="Document not found in memory or on disk")
+                                                       
+        document_path = _resolve_document_path(document_id)
         
         print(f"[Preview] Processing document: {document_path}")
         
-        # Get document processor
+                                
         processor = get_document_processor()
         
-        # First, detect and crop document boundaries
+                                                    
         cropped_doc_result = {'success': False, 'error': 'Document crop not attempted'}
-        cropped_document_path = document_path  # Default to original
+        cropped_document_path = document_path                       
         
         if processor.face_service:
             try:
@@ -613,20 +768,20 @@ async def extract_document_preview(request: Dict[str, str]):
                 print(f"[Preview] Document crop result: {cropped_doc_result.get('success')}")
                 
                 if cropped_doc_result.get('success'):
-                    # Save the cropped document temporarily
+                                                           
                     cropped_image_base64 = cropped_doc_result.get('image_base64', '')
                     print(f"[Preview] Cropped document extracted successfully")
                 else:
                     print(f"[Preview] Document crop warning: {cropped_doc_result.get('error')}")
-                    # Continue with original image if crop fails
+                                                                
             except Exception as crop_err:
                 print(f"[Preview] Document crop exception: {str(crop_err)}")
                 import traceback
                 traceback.print_exc()
                 cropped_doc_result = {'success': False, 'error': str(crop_err)}
         
-        # Extract face from the cropped document if available, otherwise from original
-        # For face extraction, we'll use the original path since we need a file path
+                                                                                      
+                                                                                    
         face_result = {'success': False, 'error': 'Face extraction not attempted'}
         if processor.face_service:
             try:
@@ -640,10 +795,11 @@ async def extract_document_preview(request: Dict[str, str]):
                 traceback.print_exc()
                 face_result = {'success': False, 'error': str(face_err)}
         
-        # Extract text and data using PaddleOCR + Document Parser
+                                                                 
         name = None
         id_number = None
         data_result = {'success': False, 'error': 'Data extraction not attempted'}
+        gemini_cross_check = None
         
         try:
             print(f"[Preview] Extracting text from document type: {document_type}")
@@ -654,8 +810,10 @@ async def extract_document_preview(request: Dict[str, str]):
             ocr_service = get_paddle_service()
             parser = DocumentParser()
             extractor = get_name_id_extractor()
+            gemini_service = get_secondry_ocr_service()
+            ocr_source = "paddle"
             
-            # Extract text using PaddleOCR
+                                          
             print(f"[Preview] Using PaddleOCR for text extraction...")
             ocr_result = ocr_service.extract_text(document_path, preprocess=True)
             print(f"[Preview] OCR success: {ocr_result.get('success')}")
@@ -666,7 +824,7 @@ async def extract_document_preview(request: Dict[str, str]):
                 parse_text = "\n".join(structured_lines) if structured_lines else raw_text
                 print(f"[Preview] Extracted text:\n{raw_text}")
                 
-                # Parse the text to extract structured data
+                                                           
                 parsed = parser.parse_document(parse_text, document_type)
                 hybrid = extractor.extract(parse_text, document_type, structured_lines=structured_lines)
                 print(f"[Preview] Parsed data: {parsed}")
@@ -683,7 +841,7 @@ async def extract_document_preview(request: Dict[str, str]):
                     else:
                         name = None
                     
-                    # Get ID number based on document type
+                                                          
                     id_field_mapping = {
                         'aadhaar': 'aadhaar_number',
                         'pan': 'pan_number',
@@ -710,10 +868,101 @@ async def extract_document_preview(request: Dict[str, str]):
                         'success': bool(name or id_number),
                         'error': None if (name or id_number) else error_msg
                     }
+
+                                                                                          
+                try:
+                    if getattr(gemini_service, "available", False):
+                        gemini_ocr = gemini_service.extract_text(document_path)
+                        if gemini_ocr.get("success"):
+                            gemini_raw = gemini_ocr.get("raw_text", "")
+                            gemini_lines = gemini_ocr.get("structured_text", []) or []
+                            gemini_text = "\n".join(gemini_lines) if gemini_lines else gemini_raw
+                            gemini_hybrid = extractor.extract(gemini_text, document_type, structured_lines=gemini_lines)
+                            gemini_fields = (gemini_hybrid.get("fields", {}) or {})
+
+                            gem_name = gemini_fields.get("name")
+                            gem_id = gemini_fields.get("id_number")
+                            gemini_cross_check = {
+                                "success": True,
+                                "name": gem_name,
+                                "id_number": gem_id,
+                                "name_match": bool(name and gem_name and str(name).strip().lower() == str(gem_name).strip().lower()),
+                                "id_match": bool(id_number and gem_id and str(id_number).upper() == str(gem_id).upper()),
+                            }
+
+                                                                                                                               
+                            if (not name or not _looks_like_person_name(str(name))) and gem_name and _looks_like_person_name(str(gem_name)):
+                                name = str(gem_name).strip()
+                                                   
+                            if not id_number and gem_id:
+                                id_number = str(gem_id).strip()
+                            if name or id_number:
+                                data_result = {'success': True}
+                        else:
+                            gemini_cross_check = {
+                                "success": False,
+                                "error": gemini_ocr.get("error", "Gemini OCR cross-check failed")
+                            }
+                except Exception as gem_err:
+                    gemini_cross_check = {
+                        "success": False,
+                        "error": f"Gemini OCR cross-check unavailable: {str(gem_err)}"
+                    }
             else:
                 error_msg = ocr_result.get('error', 'OCR failed')
                 print(f"[Preview] OCR error: {error_msg}")
                 data_result = {'success': False, 'error': error_msg}
+
+                                                                        
+                if getattr(gemini_service, "available", False):
+                    gemini_ocr = gemini_service.extract_text(document_path)
+                    if gemini_ocr.get("success"):
+                        gemini_raw = gemini_ocr.get("raw_text", "")
+                        gemini_lines = gemini_ocr.get("structured_text", []) or []
+                        gemini_text = "\n".join(gemini_lines) if gemini_lines else gemini_raw
+                        gemini_parsed = parser.parse_document(gemini_text, document_type)
+                        gemini_hybrid = extractor.extract(gemini_text, document_type, structured_lines=gemini_lines)
+                        gemini_fields = (gemini_hybrid.get("fields", {}) or {})
+
+                        parsed_name = (gemini_parsed or {}).get("name") if isinstance(gemini_parsed, dict) else None
+                        hybrid_name = gemini_fields.get("name")
+                        if document_type == 'pan' and hybrid_name and _looks_like_person_name(str(hybrid_name)):
+                            name = hybrid_name
+                        elif parsed_name and _looks_like_person_name(str(parsed_name)):
+                            name = parsed_name
+                        elif hybrid_name and _looks_like_person_name(str(hybrid_name)):
+                            name = hybrid_name
+
+                        id_field_mapping = {
+                            'aadhaar': 'aadhaar_number',
+                            'pan': 'pan_number',
+                            'driving_license': 'license_number',
+                            'passport': 'passport_number',
+                            'voter_id': 'voter_id'
+                        }
+                        id_field = id_field_mapping.get(document_type)
+                        if id_field and isinstance(gemini_parsed, dict):
+                            id_number = gemini_parsed.get(id_field)
+                        if not id_number:
+                            id_number = gemini_fields.get("id_number")
+
+                        gemini_cross_check = {
+                            "success": True,
+                            "fallback_used": True,
+                            "name": name,
+                            "id_number": id_number,
+                        }
+                        if name or id_number:
+                            ocr_source = "gemini_fallback"
+                            data_result = {'success': True}
+                        else:
+                            data_result = {'success': False, 'error': 'No name/id extracted from Paddle or Gemini'}
+                    else:
+                        gemini_cross_check = {
+                            "success": False,
+                            "fallback_used": True,
+                            "error": gemini_ocr.get("error", "Gemini OCR fallback failed")
+                        }
                 
         except Exception as data_err:
             print(f"[Preview] Data extraction exception: {str(data_err)}")
@@ -735,6 +984,8 @@ async def extract_document_preview(request: Dict[str, str]):
             'name': name,
             'id_number': id_number,
             'data_error': data_result.get('error') if not data_result.get('success') else None,
+            'ocr_source': ocr_source if (name or id_number) else "none",
+            'gemini_cross_check': gemini_cross_check,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -747,12 +998,116 @@ async def extract_document_preview(request: Dict[str, str]):
         raise HTTPException(status_code=500, detail=f"Preview extraction failed: {str(e)}")
 
 
+@router.post("/api/documents/manual-cross-check")
+async def manual_cross_check_document_details(request: ManualCrossCheckRequest):
+\
+\
+\
+       
+    try:
+        document_path = _resolve_document_path(request.document_id)
+
+        from ai.paddle_ocr_service import get_paddle_service
+        from ai.name_id_extractor import get_name_id_extractor
+        from ..services.document_parser import DocumentParser
+
+        ocr_service = get_paddle_service()
+        extractor = get_name_id_extractor()
+        parser = DocumentParser()
+
+        ocr_result = ocr_service.extract_text(document_path, preprocess=True)
+        if not ocr_result.get("success"):
+            return {
+                "success": True,
+                "document_id": request.document_id,
+                "document_type": request.document_type,
+                "ocr_available": False,
+                "exists_in_ocr": False,
+                "name_match": False,
+                "id_match": False,
+                "matched_fields": [],
+                "message": ocr_result.get("error", "OCR unavailable for cross-check"),
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        raw_text = ocr_result.get("raw_text", "") or ""
+        structured_lines = ocr_result.get("structured_text", []) or []
+        parse_text = "\n".join(structured_lines) if structured_lines else raw_text
+
+        parsed = parser.parse_document(parse_text, request.document_type)
+        hybrid = extractor.extract(parse_text, request.document_type, structured_lines=structured_lines)
+        fields = (hybrid.get("fields", {}) or {})
+
+        id_field_mapping = {
+            'aadhaar': 'aadhaar_number',
+            'pan': 'pan_number',
+            'driving_license': 'license_number',
+            'passport': 'passport_number',
+            'voter_id': 'voter_id'
+        }
+        id_field = id_field_mapping.get(str(request.document_type))
+
+        ocr_candidate_name = parsed.get("name") or fields.get("name")
+        ocr_candidate_id = (parsed.get(id_field) if id_field else None) or fields.get("id_number")
+
+        entered_name = (request.entered_name or "").strip()
+        entered_id = (request.entered_id or "").strip()
+
+        ocr_lines = [str(line) for line in structured_lines if str(line).strip()]
+        if ocr_candidate_name:
+            ocr_lines.append(str(ocr_candidate_name))
+
+        name_match = False
+        id_match = False
+
+        if entered_name:
+            name_match = _name_exists_in_ocr(entered_name, ocr_lines)
+            if not name_match and ocr_candidate_name:
+                name_match = _normalize_name_for_match(entered_name) == _normalize_name_for_match(ocr_candidate_name)
+
+        if entered_id:
+            id_match = _id_exists_in_ocr(entered_id, raw_text)
+            if not id_match and ocr_candidate_id:
+                id_match = _normalize_id_for_match(entered_id) == _normalize_id_for_match(ocr_candidate_id)
+
+        matched_fields = []
+        if name_match:
+            matched_fields.append("name")
+        if id_match:
+            matched_fields.append("id_number")
+
+        exists_in_ocr = bool(name_match or id_match)
+        if exists_in_ocr:
+            message = "Manual details matched OCR text."
+        else:
+            message = "No strong OCR evidence found for entered details. Please verify document clarity."
+
+        return {
+            "success": True,
+            "document_id": request.document_id,
+            "document_type": request.document_type,
+            "ocr_available": True,
+            "ocr_method": ocr_result.get("method"),
+            "ocr_best_variant": ocr_result.get("best_variant"),
+            "exists_in_ocr": exists_in_ocr,
+            "name_match": bool(name_match),
+            "id_match": bool(id_match),
+            "matched_fields": matched_fields,
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Manual cross-check failed: {str(e)}")
+
+
 
 @router.get("/api/health", response_model=HealthResponse)
 async def health_check():
-    """Check API and service health status"""
+                                             
     try:
-        # Test services
+                       
         face_service = get_document_processor().face_service
         services = {
             'paddleocr': 'operational',
@@ -778,7 +1133,7 @@ async def health_check():
 
 @router.get("/api/debug/jobs")
 async def debug_jobs():
-    """Debug endpoint to see all jobs and their status"""
+                                                         
     return {
         "active_jobs": {
             job_id: {

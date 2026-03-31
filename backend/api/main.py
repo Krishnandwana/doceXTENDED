@@ -1,7 +1,7 @@
-"""
-DocVerify - FastAPI Main Application
-AI-Powered Document Verification System
-"""
+\
+\
+\
+   
 
 import os
 from fastapi import FastAPI
@@ -11,10 +11,10 @@ from dotenv import load_dotenv
 
 from .routes import router
 
-# Load environment variables
+                            
 load_dotenv()
 
-# Create FastAPI app
+                    
 app = FastAPI(
     title="DocVerify API",
     description="AI-Powered Document Verification System for Indian Identity Documents",
@@ -23,14 +23,14 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS
-# Get allowed origins from environment or use defaults
+                
+                                                      
 allowed_origins_str = os.getenv(
     "ALLOWED_ORIGINS",
     "https://doce-xtended.vercel.app,https://docu-verify-eight.vercel.app,http://localhost:3005,http://localhost:3000"
 )
 
-# Split and add support for file:// protocol (null origin) for testing
+                                                                      
 allowed_origins = allowed_origins_str.split(",") + ["null"]
 
 app.add_middleware(
@@ -41,13 +41,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routes
+                
 app.include_router(router)
 
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
+                       
     return {
         "message": "Welcome to DocVerify API",
         "version": "1.0.0",
@@ -58,14 +58,14 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Simple health check"""
+                             
     return {"status": "healthy"}
 
 
-# Error handlers
+                
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
-    """Handle 404 errors"""
+                           
     return JSONResponse(
         status_code=404,
         content={"error": "Resource not found", "detail": str(exc)}
@@ -74,7 +74,7 @@ async def not_found_handler(request, exc):
 
 @app.exception_handler(500)
 async def internal_error_handler(request, exc):
-    """Handle 500 errors"""
+                           
     return JSONResponse(
         status_code=500,
         content={"error": "Internal server error", "detail": str(exc)}
@@ -84,11 +84,11 @@ async def internal_error_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
 
-    # Get configuration from environment
+                                        
     host = os.getenv("API_HOST", "0.0.0.0")
     port = int(os.getenv("API_PORT", "8000"))
 
-    # Run server
+                
     uvicorn.run(
         "backend.api.main:app",
         host=host,

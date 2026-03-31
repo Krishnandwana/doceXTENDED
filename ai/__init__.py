@@ -1,12 +1,13 @@
-"""
-Top-level AI package.
-"""
+\
+\
+   
 
 __all__ = [
     "get_document_classifier",
     "get_face_liveness_service",
     "get_fraud_detection_service",
     "get_face_service",
+    "get_secondry_ocr_service",
     "get_model_registry",
     "get_name_id_extractor",
     "get_paddle_service",
@@ -21,6 +22,11 @@ def get_paddle_service():
 
 def get_face_service():
     from .face_detection_service import get_face_service as _fn
+    return _fn()
+
+
+def get_secondry_ocr_service():
+    from .secondry_ocr_service import get_secondry_ocr_service as _fn
     return _fn()
 
 

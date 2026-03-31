@@ -1,7 +1,7 @@
-"""
-Document classifier for Aadhaar, PAN, Passport, Driving License, and Voter ID.
-Rule-hybrid approach over OCR text.
-"""
+\
+\
+\
+   
 
 import re
 from typing import Any, Dict, List

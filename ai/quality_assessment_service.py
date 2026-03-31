@@ -1,6 +1,6 @@
-"""
-Quality assessment for document and face capture.
-"""
+\
+\
+   
 
 from typing import Any, Dict
 

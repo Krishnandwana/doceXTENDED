@@ -1,6 +1,6 @@
-"""
-Pydantic Models for API Request/Response
-"""
+\
+\
+   
 
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
@@ -9,7 +9,7 @@ from enum import Enum
 
 
 class DocumentType(str, Enum):
-    """Supported document types"""
+                                  
     AADHAAR = "aadhaar"
     PAN = "pan"
     DRIVING_LICENSE = "driving_license"
@@ -19,7 +19,7 @@ class DocumentType(str, Enum):
 
 
 class ProcessingStatus(str, Enum):
-    """Processing job statuses"""
+                                 
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -28,10 +28,10 @@ class ProcessingStatus(str, Enum):
     FAILED = "failed"
 
 
-# Request Models
+                
 
 class ProcessDocumentRequest(BaseModel):
-    """Request to process a document"""
+                                       
     document_id: str = Field(..., description="Unique document ID")
     document_type: DocumentType = Field(..., description="Type of document")
     use_gemini: bool = Field(True, description="Deprecated flag (PaddleOCR is used)")
@@ -39,22 +39,30 @@ class ProcessDocumentRequest(BaseModel):
 
 
 class VerifyFacesRequest(BaseModel):
-    """Request to verify faces between two images"""
+                                                    
     document_image_id: str = Field(..., description="Document image ID")
     live_photo_id: str = Field(..., description="Live photo ID")
     tolerance: float = Field(0.6, description="Face matching tolerance (0-1, lower is stricter)")
 
 
 class ValidateDataRequest(BaseModel):
-    """Request to validate document data"""
+                                           
     document_data: Dict[str, Any] = Field(..., description="Document data to validate")
     document_type: DocumentType = Field(..., description="Type of document")
 
 
-# Response Models
+class ManualCrossCheckRequest(BaseModel):
+                                                                      
+    document_id: str = Field(..., description="Unique document ID")
+    document_type: DocumentType = Field(..., description="Type of document")
+    entered_name: Optional[str] = Field(None, description="Name entered by user")
+    entered_id: Optional[str] = Field(None, description="ID number entered by user")
+
+
+                 
 
 class UploadResponse(BaseModel):
-    """Response after document upload"""
+                                        
     success: bool
     document_id: str
     filename: str
@@ -64,7 +72,7 @@ class UploadResponse(BaseModel):
 
 
 class ProcessingJobResponse(BaseModel):
-    """Response when processing job is created"""
+                                                 
     success: bool
     job_id: str
     status: ProcessingStatus
@@ -73,7 +81,7 @@ class ProcessingJobResponse(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
-    """Response for job status check"""
+                                       
     success: bool
     job_id: str
     status: ProcessingStatus
@@ -84,7 +92,7 @@ class JobStatusResponse(BaseModel):
 
 
 class OCRResult(BaseModel):
-    """OCR extraction result"""
+                               
     method: str
     success: bool
     raw_text: Optional[str] = None
@@ -94,7 +102,7 @@ class OCRResult(BaseModel):
 
 
 class ValidationResult(BaseModel):
-    """Document validation result"""
+                                    
     is_valid: bool
     errors: List[str] = []
     warnings: List[str] = []
@@ -102,7 +110,7 @@ class ValidationResult(BaseModel):
 
 
 class FaceDetectionResult(BaseModel):
-    """Face detection result"""
+                               
     face_count: int
     primary_face_encoding: Optional[List[float]] = None
     quality: Optional[Dict[str, Any]] = None
@@ -110,7 +118,7 @@ class FaceDetectionResult(BaseModel):
 
 
 class DocumentResultResponse(BaseModel):
-    """Complete document processing result"""
+                                             
     success: bool
     document_id: str
     document_type: str
@@ -127,7 +135,7 @@ class DocumentResultResponse(BaseModel):
 
 
 class FaceVerificationResponse(BaseModel):
-    """Face verification result"""
+                                  
     success: bool
     faces_match: bool
     similarity_percentage: float
@@ -139,7 +147,7 @@ class FaceVerificationResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Health check response"""
+                               
     status: str
     timestamp: str
     services: Dict[str, str]
@@ -147,7 +155,7 @@ class HealthResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """Error response"""
+                        
     success: bool = False
     error: str
     detail: Optional[str] = None
@@ -155,12 +163,12 @@ class ErrorResponse(BaseModel):
 
 
 class SupportedTypesResponse(BaseModel):
-    """Response listing supported document types"""
+                                                   
     supported_types: List[Dict[str, Any]]
 
 
 class ReportResponse(BaseModel):
-    """Document processing report"""
+                                    
     success: bool
     document_id: str
     report: str

@@ -1,7 +1,7 @@
-"""
-Image cleanup pipeline:
-denoise, deskew, contrast enhancement, shadow suppression, perspective correction.
-"""
+\
+\
+\
+   
 
 from typing import Tuple
 

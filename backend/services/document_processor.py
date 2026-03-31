@@ -1,7 +1,7 @@
-"""
-Document Processor
-Main processing pipeline that orchestrates OCR, parsing, and validation
-"""
+\
+\
+\
+   
 
 import uuid
 from datetime import datetime
@@ -12,6 +12,7 @@ import tempfile
 import cv2
 from ai.document_classifier import get_document_classifier
 from ai.fraud_detection_service import get_fraud_detection_service
+from ai.secondry_ocr_service import get_secondry_ocr_service
 from ai.name_id_extractor import get_name_id_extractor
 from ai.paddle_ocr_service import get_paddle_service
 from ai.postprocessing.explainability import build_explainability_report
@@ -24,10 +25,10 @@ from ai.face_detection_service import get_face_service
 
 
 class DocumentProcessor:
-    """Main document processing pipeline"""
+                                           
 
     def __init__(self):
-        """Initialize document processor"""
+                                           
         self.init_warnings = []
 
         self.paddle_service = None
@@ -39,6 +40,11 @@ class DocumentProcessor:
         self.parser = get_document_parser()
         self.classifier = get_document_classifier()
         self.extractor = get_name_id_extractor()
+        self.gemini_ocr_service = None
+        try:
+            self.gemini_ocr_service = get_secondry_ocr_service()
+        except Exception as e:
+            self.init_warnings.append(f"Gemini OCR service unavailable: {str(e)}")
         self.face_service = None
         try:
             self.face_service = get_face_service()
@@ -54,18 +60,18 @@ class DocumentProcessor:
         use_gemini: bool = True,
         detect_face: bool = True
     ) -> Dict[str, Any]:
-        """
-        Process a document through the complete pipeline.
-
-        Args:
-            image_path: Path to document image
-            document_type: Type of document (aadhaar, pan, etc.)
-            use_gemini: Deprecated flag kept for API compatibility
-            detect_face: Whether to perform face detection
-
-        Returns:
-            Dictionary containing all processing results
-        """
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+           
         result = {
             'timestamp': datetime.now().isoformat(),
             'document_type': document_type,
@@ -85,7 +91,7 @@ class DocumentProcessor:
             result['warnings'].extend(self.init_warnings)
 
         try:
-            # Step 1: Authenticity + quality checks
+                                                   
             try:
                 fraud_result = self.fraud_service.analyze(image_path)
                 quality_result = self.quality_service.assess(image_path)
@@ -115,7 +121,7 @@ class DocumentProcessor:
             except Exception:
                 result['warnings'].append("Could not perform image authenticity check.")
 
-            # Step 2: OCR extraction (preprocessed image first, then fallback)
+                                                                              
             if use_gemini:
                 result['warnings'].append("`use_gemini` is deprecated; PaddleOCR is used.")
 
@@ -133,7 +139,7 @@ class DocumentProcessor:
                         cv2.imwrite(temp_preprocessed, processed)
                         ocr_result = self.paddle_service.extract_text(temp_preprocessed, preprocess=False)
 
-                    # Fallback to service-level preprocess on original image.
+                                                                             
                     if not ocr_result or not ocr_result.get('success'):
                         ocr_result = self.paddle_service.extract_text(image_path, preprocess=True)
                 finally:
@@ -149,7 +155,7 @@ class DocumentProcessor:
                     structured_lines = ocr_result.get('structured_text', []) or []
                     parse_text = "\n".join(structured_lines) if structured_lines else raw_text
 
-                    # Step 3: Document analysis - classification + field extraction
+                                                                                   
                     classification = self.classifier.classify(parse_text)
                     extracted = self.extractor.extract(parse_text, document_type, structured_lines=structured_lines)
                     parsed_data = self.parser.parse_document(parse_text, document_type)
@@ -175,7 +181,7 @@ class DocumentProcessor:
                     merged = normalize_document_fields(merged)
                     result['parsed_data'] = merged
 
-                    # If classifier strongly disagrees, surface guidance.
+                                                                         
                     if classification.get('success'):
                         predicted = classification.get('document_type')
                         cls_conf = float(classification.get('confidence', 0.0))
@@ -184,7 +190,7 @@ class DocumentProcessor:
                                 f"Document appears to be '{predicted}' (confidence {cls_conf:.2f}) instead of '{document_type}'."
                             )
 
-                    # Build fused confidence + decision for explainable analysis.
+                                                                                 
                     ocr_conf = float(result['ocr_result'].get('average_confidence', 0.0))
                     ocr_conf = ocr_conf if ocr_conf <= 1.0 else (ocr_conf / 100.0)
                     parser_conf = min(1.0, max(0.0, len([v for v in merged.values() if v]) / 5.0))
@@ -206,10 +212,57 @@ class DocumentProcessor:
                         'fused_decision': fused,
                         'explainability': explainability,
                     }
+
+                                                                        
+                    if use_gemini and self.gemini_ocr_service and getattr(self.gemini_ocr_service, "available", False):
+                        gemini_result = self.gemini_ocr_service.extract_text(image_path)
+                        if gemini_result.get("success"):
+                            gemini_raw = gemini_result.get("raw_text", "")
+                            gemini_lines = gemini_result.get("structured_text", []) or []
+                            gemini_parse_text = "\n".join(gemini_lines) if gemini_lines else gemini_raw
+                            gemini_extracted = self.extractor.extract(
+                                gemini_parse_text, document_type, structured_lines=gemini_lines
+                            )
+                            gemini_parsed = self.parser.parse_document(gemini_parse_text, document_type)
+
+                            paddle_fields = (extracted.get("fields", {}) or {})
+                            gemini_fields = (gemini_extracted.get("fields", {}) or {})
+                            id_match = (
+                                bool(paddle_fields.get("id_number"))
+                                and bool(gemini_fields.get("id_number"))
+                                and str(paddle_fields.get("id_number")).upper() == str(gemini_fields.get("id_number")).upper()
+                            )
+                            name_match = (
+                                bool(paddle_fields.get("name"))
+                                and bool(gemini_fields.get("name"))
+                                and str(paddle_fields.get("name")).strip().lower() == str(gemini_fields.get("name")).strip().lower()
+                            )
+
+                            result["gemini_validation"] = {
+                                "success": True,
+                                "cross_check_enabled": True,
+                                "paddle_method": result["ocr_result"].get("method"),
+                                "gemini_method": gemini_result.get("method"),
+                                "paddle_fields": paddle_fields,
+                                "gemini_fields": gemini_fields,
+                                "name_match": bool(name_match),
+                                "id_match": bool(id_match),
+                                "gemini_parsed_data": gemini_parsed,
+                            }
+                            if not name_match:
+                                result["warnings"].append("Name differs between Paddle OCR and Gemini OCR cross-check.")
+                            if not id_match:
+                                result["warnings"].append("ID number differs between Paddle OCR and Gemini OCR cross-check.")
+                        else:
+                            result["gemini_validation"] = {
+                                "success": False,
+                                "cross_check_enabled": True,
+                                "error": gemini_result.get("error", "Gemini OCR cross-check failed"),
+                            }
                 else:
                     result['errors'].append(f"PaddleOCR failed: {(ocr_result or {}).get('error', 'Unknown error')}")
 
-            # Step 4: Validate parsed data
+                                          
             if result['parsed_data']:
                 validation = self.parser.validate_document_data(result['parsed_data'], document_type)
                 result['validation'] = validation
@@ -226,7 +279,7 @@ class DocumentProcessor:
             else:
                 result['errors'].append("No data could be extracted from document")
 
-            # Step 5: Face detection for non-bill docs
+                                                      
             if detect_face and document_type != 'bill' and self.face_service:
                 face_result = self.face_service.detect_faces(image_path)
 
@@ -249,7 +302,7 @@ class DocumentProcessor:
             elif detect_face and document_type != 'bill' and not self.face_service:
                 result['warnings'].append("Face detection service not available")
 
-            # Step 6: Determine overall status
+                                              
             if result['errors']:
                 result['overall_status'] = 'completed_with_errors'
             elif result['warnings']:
@@ -269,7 +322,7 @@ class DocumentProcessor:
         live_photo_path: str,
         tolerance: float = 0.6
     ) -> Dict[str, Any]:
-        """Verify if face in document matches live photo."""
+                                                            
         try:
             if not self.face_service:
                 return {
@@ -313,7 +366,7 @@ class DocumentProcessor:
         documents: list[Dict[str, str]],
         use_gemini: bool = True
     ) -> Dict[str, Any]:
-        """Process multiple documents in batch."""
+                                                  
         results = []
         summary = {
             'total': len(documents),
@@ -349,7 +402,7 @@ class DocumentProcessor:
         }
 
     def generate_report(self, processing_result: Dict[str, Any]) -> str:
-        """Generate a human-readable report from processing results."""
+                                                                       
         report_lines = [
             "=" * 60,
             "DOCUMENT VERIFICATION REPORT",
@@ -472,12 +525,10 @@ class DocumentProcessor:
         return "\n".join(report_lines)
 
 
-# Singleton instance
 _processor = None
 
 
 def get_document_processor() -> DocumentProcessor:
-    """Get or create DocumentProcessor instance."""
     global _processor
     if _processor is None:
         _processor = DocumentProcessor()

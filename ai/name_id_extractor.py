@@ -1,7 +1,7 @@
-"""
-Hybrid name and ID extractor from OCR text.
-Focused on practical accuracy for noisy OCR output.
-"""
+\
+\
+\
+   
 
 import re
 from typing import Any, Dict, List, Optional
@@ -83,7 +83,7 @@ class NameIDExtractor:
         if not lines:
             return None
 
-        # 1) First preference: explicit "Name ..." label lines.
+                                                               
         for line in lines:
             m = self.NAME_LABEL_RE.search(line)
             if m:
@@ -91,13 +91,13 @@ class NameIDExtractor:
                 if self._is_valid_name_candidate(cand):
                     return cand
 
-        # 2) PAN-specific robust heuristic: choose person-like line near PAN number.
+                                                                                    
         if doc_type.lower() == "pan":
             pan_name = self._extract_pan_name(lines, id_number)
             if pan_name:
                 return pan_name
 
-        # 3) Generic best-score fallback.
+                                         
         scored: List[tuple[float, str]] = []
         for i, line in enumerate(lines):
             cand = self._normalize_name(line)
@@ -130,7 +130,7 @@ class NameIDExtractor:
             if base <= 0:
                 continue
 
-            # Prefer lines close to PAN number and penalize known header terms.
+                                                                               
             proximity = 0.0
             if pan_idx >= 0:
                 proximity = max(0.0, 0.5 - 0.12 * abs(i - pan_idx))
@@ -171,7 +171,7 @@ class NameIDExtractor:
         low_words = {w.lower() for w in words}
         if low_words & self.NAME_BLOCK_TOKENS:
             return False
-        # block "AX DEPARTMENT" type OCR noise
+                                              
         joined = " ".join(low_words)
         if "department" in joined or "account number" in joined:
             return False

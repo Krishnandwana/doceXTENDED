@@ -1,10 +1,10 @@
-"""
-PaddleOCR Service
-Primary OCR service using PaddleOCR for text extraction.
-"""
+\
+\
+\
+   
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 import tempfile
 
 import cv2
@@ -12,16 +12,20 @@ import numpy as np
 
 
 class PaddleOCRService:
-    """Service for OCR using PaddleOCR."""
+                                          
 
     def __init__(self, use_angle_cls: bool = True, lang: str = "en"):
-        # Keep Paddle cache/model files inside project workspace to avoid
-        # permission issues with user profile cache directories.
+                                                                         
+                                                                
         paddle_home = os.path.abspath(os.getenv("PADDLE_HOME", "data/paddle_home"))
         os.makedirs(paddle_home, exist_ok=True)
         os.makedirs(os.path.join(paddle_home, ".cache"), exist_ok=True)
         os.environ["PADDLE_HOME"] = paddle_home
         os.environ.setdefault("XDG_CACHE_HOME", os.path.join(paddle_home, ".cache"))
+                                                                              
+        os.environ.setdefault("FLAGS_use_mkldnn", "0")
+        os.environ.setdefault("FLAGS_enable_pir_api", "0")
+        os.environ.setdefault("FLAGS_enable_pir_in_executor", "0")
 
         self.ocr = None
         self.rapid_ocr = None
@@ -29,17 +33,25 @@ class PaddleOCRService:
 
         try:
             from paddleocr import PaddleOCR
+            ocr_kwargs = {
+                "use_angle_cls": use_angle_cls,
+                "lang": lang,
+                "use_gpu": False,
+                "show_log": False,
+                "enable_mkldnn": False,
+            }
             try:
-                self.ocr = PaddleOCR(
-                    use_angle_cls=use_angle_cls,
-                    lang=lang,
-                )
+                self.ocr = PaddleOCR(**ocr_kwargs)
             except TypeError:
-                # Fallback for PaddleOCR API variations across major versions.
-                self.ocr = PaddleOCR(lang=lang)
+                                                                              
+                ocr_kwargs.pop("enable_mkldnn", None)
+                try:
+                    self.ocr = PaddleOCR(**ocr_kwargs)
+                except TypeError:
+                    self.ocr = PaddleOCR(lang=lang)
             self.engine = "paddleocr"
         except Exception:
-            # Network-restricted fallback: RapidOCR ONNX engine.
+                                                                
             try:
                 from rapidocr_onnxruntime import RapidOCR
                 self.rapid_ocr = RapidOCR()
@@ -48,7 +60,7 @@ class PaddleOCRService:
                 self.engine = "unavailable"
 
     def preprocess_image(self, image_path: str) -> np.ndarray:
-        """Preprocess image for better OCR results."""
+                                                      
         image = cv2.imread(image_path)
         if image is None:
             raise ValueError(f"Could not read image: {image_path}")
@@ -83,8 +95,80 @@ class PaddleOCRService:
 
         return thresh
 
+    def _build_ocr_variants(self, image: np.ndarray) -> List[Tuple[str, np.ndarray]]:
+                                                                               
+        variants: List[Tuple[str, np.ndarray]] = [("original", image)]
+
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+        denoised = cv2.fastNlMeansDenoising(gray)
+
+        adaptive = cv2.adaptiveThreshold(
+            denoised,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            11,
+            2,
+        )
+        variants.append(("adaptive", adaptive))
+
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(denoised)
+        _, otsu = cv2.threshold(clahe, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        variants.append(("clahe_otsu", otsu))
+
+        upscaled = cv2.resize(adaptive, None, fx=1.6, fy=1.6, interpolation=cv2.INTER_CUBIC)
+        variants.append(("adaptive_upscaled", upscaled))
+
+        return variants
+
+    def _run_ocr_with_engine(self, image: np.ndarray) -> List[Tuple[Any, str, float]]:
+\
+\
+\
+           
+        temp_file_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                temp_file_path = tmp.name
+            cv2.imwrite(temp_file_path, image)
+
+            if self.engine == "paddleocr":
+                try:
+                    result = self.ocr.ocr(temp_file_path, cls=True)
+                except TypeError:
+                                                                                   
+                                                                   
+                    result = self.ocr.ocr(temp_file_path)
+                if not result or not result[0]:
+                    return []
+                lines: List[Tuple[Any, str, float]] = []
+                for line in result[0]:
+                    bbox, (text, confidence) = line
+                    lines.append((bbox, str(text), float(confidence)))
+                return lines
+
+            if self.engine == "rapidocr":
+                result, _ = self.rapid_ocr(temp_file_path)
+                if not result:
+                    return []
+                lines = []
+                for line in result:
+                    if not isinstance(line, (list, tuple)) or len(line) < 3:
+                        continue
+                    bbox, text, confidence = line[0], line[1], line[2]
+                    lines.append((bbox, str(text), float(confidence)))
+                return lines
+
+            return []
+        finally:
+            if temp_file_path:
+                try:
+                    os.remove(temp_file_path)
+                except Exception:
+                    pass
+
     def extract_text(self, image_path: str, preprocess: bool = True) -> Dict[str, Any]:
-        """Extract text from image using PaddleOCR."""
+                                                      
         try:
             if self.engine == "unavailable":
                 return {
@@ -94,80 +178,57 @@ class PaddleOCRService:
                     "method": "none",
                 }
 
-            input_path = image_path
-            temp_file_path = None
+            image = cv2.imread(image_path)
+            if image is None:
+                raise ValueError(f"Could not read image: {image_path}")
 
-            if preprocess:
-                processed = self.preprocess_image(image_path)
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                    temp_file_path = tmp.name
-                cv2.imwrite(temp_file_path, processed)
-                input_path = temp_file_path
+            variants = self._build_ocr_variants(image) if preprocess else [("original", image)]
+            merged_lines: Dict[str, Dict[str, Any]] = {}
+            best_variant = "original"
+            best_score = -1.0
 
-            if self.engine == "paddleocr":
-                result = self.ocr.ocr(input_path, cls=True)
-                if temp_file_path:
-                    try:
-                        os.remove(temp_file_path)
-                    except Exception:
-                        pass
+            for variant_name, variant_img in variants:
+                lines = self._run_ocr_with_engine(variant_img)
+                if not lines:
+                    continue
 
-                if not result or not result[0]:
-                    return {
-                        "success": False,
-                        "error": "No text detected",
-                        "raw_text": "",
-                        "method": "paddleocr",
-                    }
+                line_count = 0
+                conf_sum = 0.0
+                for bbox, text, confidence in lines:
+                    clean_text = str(text or "").strip()
+                    if not clean_text:
+                        continue
 
-                texts = []
-                confidences = []
-                bounding_boxes = []
+                    key = " ".join(clean_text.split()).lower()
+                    line_count += 1
+                    conf_sum += float(confidence)
 
-                for line in result[0]:
-                    bbox, (text, confidence) = line
-                    texts.append(text)
-                    confidences.append(float(confidence))
-                    bounding_boxes.append(bbox)
+                    prev = merged_lines.get(key)
+                    if prev is None or float(confidence) > prev["confidence"]:
+                        merged_lines[key] = {
+                            "text": clean_text,
+                            "confidence": float(confidence),
+                            "bbox": bbox,
+                            "variant": variant_name,
+                        }
 
-                return {
-                    "success": True,
-                    "raw_text": " ".join(texts),
-                    "structured_text": texts,
-                    "confidence_scores": confidences,
-                    "bounding_boxes": bounding_boxes,
-                    "average_confidence": float(np.mean(confidences)) if confidences else 0.0,
-                    "method": "paddleocr",
-                }
+                score = conf_sum + (0.15 * line_count)
+                if score > best_score:
+                    best_score = score
+                    best_variant = variant_name
 
-            # RapidOCR fallback path.
-            result, _ = self.rapid_ocr(input_path)
-            if temp_file_path:
-                try:
-                    os.remove(temp_file_path)
-                except Exception:
-                    pass
-
-            if not result:
+            if not merged_lines:
                 return {
                     "success": False,
                     "error": "No text detected",
                     "raw_text": "",
-                    "method": "rapidocr",
+                    "method": self.engine,
                 }
 
-            texts = []
-            confidences = []
-            bounding_boxes = []
-
-            for line in result:
-                # RapidOCR line format: [bbox, text, score]
-                if not isinstance(line, (list, tuple)) or len(line) < 3:
-                    continue
-                bbox, text, confidence = line[0], line[1], line[2]
-                texts.append(str(text))
-                confidences.append(float(confidence))
-                bounding_boxes.append(bbox)
+            sorted_lines = sorted(merged_lines.values(), key=lambda x: x["confidence"], reverse=True)
+            texts = [line["text"] for line in sorted_lines]
+            confidences = [float(line["confidence"]) for line in sorted_lines]
+            bounding_boxes = [line["bbox"] for line in sorted_lines]
 
             return {
                 "success": True,
@@ -176,7 +237,9 @@ class PaddleOCRService:
                 "confidence_scores": confidences,
                 "bounding_boxes": bounding_boxes,
                 "average_confidence": float(np.mean(confidences)) if confidences else 0.0,
-                "method": "rapidocr",
+                "method": self.engine,
+                "best_variant": best_variant,
+                "variants_tried": [name for name, _ in variants],
             }
         except Exception as e:
             return {
@@ -191,7 +254,7 @@ _paddle_service = None
 
 
 def get_paddle_service() -> PaddleOCRService:
-    """Get singleton PaddleOCR service instance."""
+                                                   
     global _paddle_service
     if _paddle_service is None:
         _paddle_service = PaddleOCRService()

@@ -93,3 +93,5 @@ frontend/dist/
 *.tmp
 temp/
 tmp/
+
+data/.cache/

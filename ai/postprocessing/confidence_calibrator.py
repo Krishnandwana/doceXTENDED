@@ -1,6 +1,6 @@
-"""
-Confidence calibration helpers.
-"""
+\
+\
+   
 
 from typing import Dict
 
@@ -8,7 +8,7 @@ from typing import Dict
 def calibrate_confidence(raw_score: float, method: str = "linear") -> float:
     score = max(0.0, min(1.0, float(raw_score)))
     if method == "sigmoid":
-        # Cheap approximation around mid-range.
+                                               
         return max(0.0, min(1.0, 1.0 / (1.0 + pow(2.71828, -8 * (score - 0.5)))))
     if method == "piecewise":
         if score < 0.4:

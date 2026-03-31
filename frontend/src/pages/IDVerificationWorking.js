@@ -39,6 +39,9 @@ function ScanningAnimation({ isScanning }) {
 const IDVerificationPage = () => {
   const navigate = useNavigate();
   const webcamRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordingTimerRef = useRef(null);
+  const recordedChunksRef = useRef([]);
   const [step, setStep] = useState('upload'); // upload, confirmation, capture, processing, result
   const [documentFile, setDocumentFile] = useState(null);
   const [documentPreview, setDocumentPreview] = useState(null);
@@ -59,6 +62,13 @@ const IDVerificationPage = () => {
   const [extractedId, setExtractedId] = useState(null);
   const [croppedFace, setCroppedFace] = useState(null);
   const [extractingPreview, setExtractingPreview] = useState(false);
+  const [needsManualCrossCheck, setNeedsManualCrossCheck] = useState(false);
+  const [manualCrossCheckResult, setManualCrossCheckResult] = useState(null);
+  const [manualCrossChecking, setManualCrossChecking] = useState(false);
+  const [isRecordingLiveness, setIsRecordingLiveness] = useState(false);
+  const [livenessCountdown, setLivenessCountdown] = useState(0);
+  const [livenessResult, setLivenessResult] = useState(null);
+  const [isCheckingLiveness, setIsCheckingLiveness] = useState(false);
 
   // Load face-api models on mount using the same approach as test HTML
   useEffect(() => {
@@ -214,6 +224,8 @@ const IDVerificationPage = () => {
 
     setExtractingPreview(true);
     setError(null);
+    setNeedsManualCrossCheck(false);
+    setManualCrossCheckResult(null);
 
     try {
       // Step 1: Upload document
@@ -255,6 +267,13 @@ const IDVerificationPage = () => {
         setExtractedId(previewData.id_number);
       }
 
+      if (!previewData.data_extracted) {
+        setNeedsManualCrossCheck(true);
+        const src = previewData.ocr_source ? `Source: ${previewData.ocr_source}` : '';
+        const reason = previewData.data_error || 'No text could be extracted from this image.';
+        setError(`${reason}${src ? ` (${src})` : ''}`);
+      }
+
       // Move to confirmation screen
       setStep('confirmation');
       setExtractingPreview(false);
@@ -271,9 +290,43 @@ const IDVerificationPage = () => {
       setExtractingPreview(false);
     }
   };
+
+  const runManualCrossCheck = async () => {
+    if (!documentId) {
+      setError('Document is missing. Please upload again.');
+      return;
+    }
+    if (!extractedName && !extractedId) {
+      setError('Enter at least name or ID number before cross-checking.');
+      return;
+    }
+
+    setManualCrossChecking(true);
+    setError(null);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/documents/manual-cross-check`, {
+        document_id: documentId,
+        document_type: documentType,
+        entered_name: extractedName || null,
+        entered_id: extractedId || null
+      }, { timeout: 60000 });
+
+      setManualCrossCheckResult(response.data);
+    } catch (err) {
+      console.error('Manual cross-check failed:', err);
+      setManualCrossCheckResult(null);
+      setError(err.response?.data?.detail || err.message || 'Manual cross-check failed');
+    } finally {
+      setManualCrossChecking(false);
+    }
+  };
   
   // Proceed to face capture from confirmation
   const proceedToCapture = () => {
+    if (needsManualCrossCheck && !manualCrossCheckResult && (extractedName || extractedId)) {
+      setError('Run manual cross-check once to validate entered details against OCR.');
+      return;
+    }
     setStep('capture');
   };
 
@@ -310,10 +363,107 @@ const IDVerificationPage = () => {
     setSelfieImage(null);
   };
 
+  const uploadLivenessVideo = async (videoBlob) => {
+    setIsCheckingLiveness(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', videoBlob, 'liveness.webm');
+      const response = await axios.post(`${API_BASE_URL}/api/face/liveness-video`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000
+      });
+      setLivenessResult(response.data);
+    } catch (err) {
+      console.error('Liveness video check failed:', err);
+      setLivenessResult(null);
+      setError(err?.response?.data?.detail || err?.message || 'Liveness check failed');
+    } finally {
+      setIsCheckingLiveness(false);
+    }
+  };
+
+  const startLivenessRecording = useCallback(() => {
+    if (!webcamRef.current?.video?.srcObject) {
+      setError('Camera stream not ready for liveness recording');
+      return;
+    }
+
+    if (isRecordingLiveness) return;
+
+    setError(null);
+    setLivenessResult(null);
+    recordedChunksRef.current = [];
+
+    const stream = webcamRef.current.video.srcObject;
+    let selectedMimeType = '';
+    const supported = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    for (const mt of supported) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(mt)) {
+        selectedMimeType = mt;
+        break;
+      }
+    }
+
+    try {
+      mediaRecorderRef.current = selectedMimeType
+        ? new MediaRecorder(stream, { mimeType: selectedMimeType })
+        : new MediaRecorder(stream);
+    } catch (err) {
+      console.error('MediaRecorder init failed:', err);
+      setError('Could not start 5-second video recording in this browser');
+      return;
+    }
+
+    mediaRecorderRef.current.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        recordedChunksRef.current.push(event.data);
+      }
+    };
+
+    mediaRecorderRef.current.onstop = async () => {
+      setIsRecordingLiveness(false);
+      setLivenessCountdown(0);
+      const blobType = selectedMimeType || 'video/webm';
+      const videoBlob = new Blob(recordedChunksRef.current, { type: blobType });
+      if (videoBlob.size <= 0) {
+        setError('Recorded liveness video is empty. Please try again.');
+        return;
+      }
+      await uploadLivenessVideo(videoBlob);
+    };
+
+    setIsRecordingLiveness(true);
+    setLivenessCountdown(5);
+    mediaRecorderRef.current.start();
+
+    recordingTimerRef.current = setInterval(() => {
+      setLivenessCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [isRecordingLiveness]);
+
   // Submit for verification - redirect to HTML test page
   const submitVerification = async () => {
     if (!documentId || !selfieImage) {
       setError('Both document and selfie are required');
+      return;
+    }
+    if (!livenessResult) {
+      setError('Please record a 5-second liveness video first');
+      return;
+    }
+    if (!livenessResult.is_live) {
+      setError('Liveness check failed. Please record again with natural head movement/blink.');
       return;
     }
 
@@ -333,6 +483,7 @@ const IDVerificationPage = () => {
       sessionStorage.setItem('verification_document_type', documentType);
       sessionStorage.setItem('verification_extracted_name', extractedName || '');
       sessionStorage.setItem('verification_extracted_id', extractedId || '');
+      sessionStorage.setItem('verification_liveness_result', JSON.stringify(livenessResult));
       
       console.log('✅ Images stored in sessionStorage, redirecting to verification page...');
       
@@ -362,12 +513,15 @@ const IDVerificationPage = () => {
         const docType = sessionStorage.getItem('verification_document_type');
         const storedName = sessionStorage.getItem('verification_extracted_name') || '';
         const storedId = sessionStorage.getItem('verification_extracted_id') || '';
+        const storedLivenessRaw = sessionStorage.getItem('verification_liveness_result');
+        const storedLiveness = storedLivenessRaw ? JSON.parse(storedLivenessRaw) : null;
         
         // Clean up
         sessionStorage.removeItem('verification_document_id');
         sessionStorage.removeItem('verification_document_type');
         sessionStorage.removeItem('verification_extracted_name');
         sessionStorage.removeItem('verification_extracted_id');
+        sessionStorage.removeItem('verification_liveness_result');
 
         const finalName = extractedName || storedName || null;
         const finalId = extractedId || storedId || null;
@@ -399,7 +553,8 @@ const IDVerificationPage = () => {
             face_detected: parsedResults.facesDetected?.document > 0 && parsedResults.facesDetected?.selfie > 0,
             facesDetected: parsedResults.facesDetected,
             method: 'face-api.js (HTML verification)',
-            error: parsedResults.error
+            error: parsedResults.error,
+            liveness: storedLiveness
           }
         });
         setStep('result');
@@ -411,6 +566,17 @@ const IDVerificationPage = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
 
   // Reset and start over
   const startOver = () => {
@@ -425,6 +591,11 @@ const IDVerificationPage = () => {
     setCroppedFace(null);
     setExtractedName(null);
     setExtractedId(null);
+    setNeedsManualCrossCheck(false);
+    setManualCrossCheckResult(null);
+    setLivenessResult(null);
+    setIsRecordingLiveness(false);
+    setLivenessCountdown(0);
   };
 
   return (
@@ -585,7 +756,10 @@ const IDVerificationPage = () => {
                     <input
                       type="text"
                       value={extractedName || ''}
-                      onChange={(e) => setExtractedName(e.target.value)}
+                      onChange={(e) => {
+                        setExtractedName(e.target.value);
+                        setManualCrossCheckResult(null);
+                      }}
                       placeholder="Enter full name"
                       className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
                     />
@@ -603,7 +777,10 @@ const IDVerificationPage = () => {
                     <input
                       type="text"
                       value={extractedId || ''}
-                      onChange={(e) => setExtractedId(e.target.value)}
+                      onChange={(e) => {
+                        setExtractedId(e.target.value);
+                        setManualCrossCheckResult(null);
+                      }}
                       placeholder="Enter ID number"
                       className="bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 font-mono focus:outline-none focus:ring-2 focus:ring-primary"
                     />
@@ -617,6 +794,35 @@ const IDVerificationPage = () => {
                     </div>
                   </div>
                 </div>
+
+                {needsManualCrossCheck && (
+                  <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
+                    <div className="text-sm text-yellow-300">
+                      OCR could not confidently extract details. Enter values manually, then cross-check.
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={runManualCrossCheck}
+                  disabled={manualCrossChecking || (!extractedName && !extractedId)}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {manualCrossChecking ? 'Cross-checking...' : 'Cross-check Entered Details With OCR'}
+                </button>
+
+                {manualCrossCheckResult && (
+                  <div className={`p-3 rounded-lg border ${manualCrossCheckResult.exists_in_ocr ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                    <div className={`text-sm font-medium ${manualCrossCheckResult.exists_in_ocr ? 'text-green-400' : 'text-red-400'}`}>
+                      {manualCrossCheckResult.exists_in_ocr
+                        ? 'Cross-check passed: entered detail appears in OCR text.'
+                        : 'Cross-check warning: entered detail not found clearly in OCR text.'}
+                    </div>
+                    <div className="text-xs text-gray-300 mt-1">
+                      {manualCrossCheckResult.message}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Warning if face not extracted */}
@@ -640,6 +846,8 @@ const IDVerificationPage = () => {
                     setExtractedName(null);
                     setExtractedId(null);
                     setDocumentId(null);
+                    setNeedsManualCrossCheck(false);
+                    setManualCrossCheckResult(null);
                   }}
                   className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2"
                 >
@@ -666,7 +874,7 @@ const IDVerificationPage = () => {
             >
               <div className="text-center mb-6">
                 <h1 className="text-2xl font-bold text-white mb-2">Capture Selfie</h1>
-                <p className="text-gray-400">Position your face in the center</p>
+                <p className="text-gray-400">Capture selfie and complete 5-second liveness recording</p>
               </div>
 
               {!selfieImage ? (
@@ -717,6 +925,18 @@ const IDVerificationPage = () => {
                       Back
                     </button>
                     <button
+                      onClick={startLivenessRecording}
+                      disabled={!cameraReady || cameraError || isRecordingLiveness || isCheckingLiveness}
+                      className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-symbols-outlined">videocam</span>
+                      <span>
+                        {isRecordingLiveness
+                          ? `Recording ${livenessCountdown}s`
+                          : (isCheckingLiveness ? 'Checking...' : 'Record 5s Liveness')}
+                      </span>
+                    </button>
+                    <button
                       onClick={captureSelfie}
                       disabled={!cameraReady || cameraError}
                       className="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -725,12 +945,27 @@ const IDVerificationPage = () => {
                       <span>Capture</span>
                     </button>
                   </div>
+                  {livenessResult && (
+                    <div className={`p-3 rounded-lg border ${livenessResult.is_live ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                      <div className={`text-sm font-medium ${livenessResult.is_live ? 'text-green-400' : 'text-red-400'}`}>
+                        {livenessResult.is_live ? 'Liveness passed' : 'Liveness failed'}
+                        {` (${Math.round((livenessResult.confidence || 0) * 100)}%)`}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div className="relative rounded-xl overflow-hidden border-[5px] border-primary max-w-md mx-auto" style={{boxShadow: '0 0 20px rgba(255, 121, 26, 0.5)'}}>
                     <img src={selfieImage} alt="Selfie" className="w-full h-auto" />
                   </div>
+                  {livenessResult && (
+                    <div className={`p-3 rounded-lg border ${livenessResult.is_live ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                      <div className={`text-sm font-medium ${livenessResult.is_live ? 'text-green-400' : 'text-red-400'}`}>
+                        {livenessResult.is_live ? '5-second liveness check passed' : '5-second liveness check failed'}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex gap-4">
                     <button
                       onClick={retakeSelfie}
@@ -740,6 +975,7 @@ const IDVerificationPage = () => {
                     </button>
                     <button
                       onClick={submitVerification}
+                      disabled={!livenessResult?.is_live}
                       className="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2"
                     >
                       <span className="material-symbols-outlined">verified_user</span>
@@ -873,9 +1109,11 @@ const IDVerificationPage = () => {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-400">Liveness Check</span>
-                    <span className="text-green-400 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-sm">check_circle</span>
-                      Passed
+                    <span className={`flex items-center gap-2 ${result.faceMatch?.liveness?.is_live ? 'text-green-400' : 'text-red-400'}`}>
+                      <span className="material-symbols-outlined text-sm">
+                        {result.faceMatch?.liveness?.is_live ? 'check_circle' : 'cancel'}
+                      </span>
+                      {result.faceMatch?.liveness?.is_live ? 'Passed' : 'Failed'}
                     </span>
                   </div>
                 </div>

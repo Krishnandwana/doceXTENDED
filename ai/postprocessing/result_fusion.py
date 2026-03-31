@@ -1,6 +1,6 @@
-"""
-Fuse outputs from OCR, parser, classifier, and verification stages.
-"""
+\
+\
+   
 
 from typing import Any, Dict
 
