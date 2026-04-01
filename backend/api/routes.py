@@ -869,44 +869,51 @@ async def extract_document_preview(request: Dict[str, str]):
                         'error': None if (name or id_number) else error_msg
                     }
 
-                                                                                          
-                try:
-                    if getattr(gemini_service, "available", False):
-                        gemini_ocr = gemini_service.extract_text(document_path)
-                        if gemini_ocr.get("success"):
-                            gemini_raw = gemini_ocr.get("raw_text", "")
-                            gemini_lines = gemini_ocr.get("structured_text", []) or []
-                            gemini_text = "\n".join(gemini_lines) if gemini_lines else gemini_raw
-                            gemini_hybrid = extractor.extract(gemini_text, document_type, structured_lines=gemini_lines)
-                            gemini_fields = (gemini_hybrid.get("fields", {}) or {})
+                                                                              
+                # Keep preview fast: only run Gemini when Paddle could not
+                # confidently extract name/ID.
+                if not (name or id_number):
+                    try:
+                        if getattr(gemini_service, "available", False):
+                            gemini_ocr = gemini_service.extract_text(document_path)
+                            if gemini_ocr.get("success"):
+                                gemini_raw = gemini_ocr.get("raw_text", "")
+                                gemini_lines = gemini_ocr.get("structured_text", []) or []
+                                gemini_text = "\n".join(gemini_lines) if gemini_lines else gemini_raw
+                                gemini_hybrid = extractor.extract(gemini_text, document_type, structured_lines=gemini_lines)
+                                gemini_fields = (gemini_hybrid.get("fields", {}) or {})
 
-                            gem_name = gemini_fields.get("name")
-                            gem_id = gemini_fields.get("id_number")
-                            gemini_cross_check = {
-                                "success": True,
-                                "name": gem_name,
-                                "id_number": gem_id,
-                                "name_match": bool(name and gem_name and str(name).strip().lower() == str(gem_name).strip().lower()),
-                                "id_match": bool(id_number and gem_id and str(id_number).upper() == str(gem_id).upper()),
-                            }
+                                gem_name = gemini_fields.get("name")
+                                gem_id = gemini_fields.get("id_number")
+                                gemini_cross_check = {
+                                    "success": True,
+                                    "name": gem_name,
+                                    "id_number": gem_id,
+                                    "name_match": bool(name and gem_name and str(name).strip().lower() == str(gem_name).strip().lower()),
+                                    "id_match": bool(id_number and gem_id and str(id_number).upper() == str(gem_id).upper()),
+                                }
 
-                                                                                                                               
-                            if (not name or not _looks_like_person_name(str(name))) and gem_name and _looks_like_person_name(str(gem_name)):
-                                name = str(gem_name).strip()
-                                                   
-                            if not id_number and gem_id:
-                                id_number = str(gem_id).strip()
-                            if name or id_number:
-                                data_result = {'success': True}
-                        else:
-                            gemini_cross_check = {
-                                "success": False,
-                                "error": gemini_ocr.get("error", "Gemini OCR cross-check failed")
-                            }
-                except Exception as gem_err:
+                                if (not name or not _looks_like_person_name(str(name))) and gem_name and _looks_like_person_name(str(gem_name)):
+                                    name = str(gem_name).strip()
+                                if not id_number and gem_id:
+                                    id_number = str(gem_id).strip()
+                                if name or id_number:
+                                    data_result = {'success': True}
+                            else:
+                                gemini_cross_check = {
+                                    "success": False,
+                                    "error": gemini_ocr.get("error", "Gemini OCR cross-check failed")
+                                }
+                    except Exception as gem_err:
+                        gemini_cross_check = {
+                            "success": False,
+                            "error": f"Gemini OCR cross-check unavailable: {str(gem_err)}"
+                        }
+                else:
                     gemini_cross_check = {
-                        "success": False,
-                        "error": f"Gemini OCR cross-check unavailable: {str(gem_err)}"
+                        "success": True,
+                        "skipped": True,
+                        "reason": "paddle_extracted_name_or_id"
                     }
             else:
                 error_msg = ocr_result.get('error', 'OCR failed')

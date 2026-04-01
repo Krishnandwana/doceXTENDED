@@ -241,10 +241,33 @@ const IDVerificationPage = () => {
       setDocumentId(docId);
 
       // Step 2: Extract preview (face, name, ID number)
-      const previewResponse = await axios.post(`${API_BASE_URL}/api/documents/extract-preview`, {
+      // OCR/model warm-up on cold starts can be slow on Render free tier,
+      // so retry once before surfacing an error to the user.
+      const previewPayload = {
         document_id: docId,
         document_type: documentType
-      }, { timeout: 120000 }); // 120 second timeout for OCR/model warm-up
+      };
+
+      let previewResponse;
+      try {
+        previewResponse = await axios.post(
+          `${API_BASE_URL}/api/documents/extract-preview`,
+          previewPayload,
+          { timeout: 180000 }
+        );
+      } catch (firstErr) {
+        const firstTimeout = firstErr?.code === 'ECONNABORTED'
+          || String(firstErr?.message || '').toLowerCase().includes('timeout');
+        if (!firstTimeout) throw firstErr;
+
+        // Brief pause before one retry.
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        previewResponse = await axios.post(
+          `${API_BASE_URL}/api/documents/extract-preview`,
+          previewPayload,
+          { timeout: 180000 }
+        );
+      }
 
       const previewData = previewResponse.data;
 
@@ -283,7 +306,7 @@ const IDVerificationPage = () => {
       const isTimeout = err?.code === 'ECONNABORTED' || String(err?.message || '').toLowerCase().includes('timeout');
       setError(
         err.response?.data?.detail
-          || (isTimeout ? 'Preview extraction is taking longer than expected. Please retry in a few seconds.' : null)
+          || (isTimeout ? 'OCR is taking longer than expected on cold start. Please try once more; the next attempt is usually faster.' : null)
           || err.message
           || 'Failed to extract document preview'
       );
