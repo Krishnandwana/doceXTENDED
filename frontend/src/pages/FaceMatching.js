@@ -4,7 +4,7 @@ import Webcam from 'react-webcam';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
-const API_BASE_URL = (process.env.REACT_APP_API_URL || 'https://docu-verify.onrender.com').replace(/\/+$/, '');
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'https://docextended-1.onrender.com').replace(/\/+$/, '');
 
 const FaceMatching = () => {
   const navigate = useNavigate();
