@@ -36,11 +36,23 @@ allowed_origins_str = os.getenv(
 )
 
                                                                       
-allowed_origins = allowed_origins_str.split(",") + ["null"]
+allowed_origins = [
+    origin.strip().rstrip("/")
+    for origin in allowed_origins_str.split(",")
+    if origin.strip()
+]
+if "null" not in allowed_origins:
+    allowed_origins.append("null")
+
+allowed_origin_regex = os.getenv(
+    "ALLOWED_ORIGIN_REGEX",
+    r"^https://.*\.onrender\.com$|^https://.*\.vercel\.app$|^http://localhost(:\d+)?$"
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,7 +67,7 @@ async def root():
                        
     return {
         "message": "Welcome to DocVerify API",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "docs": "/docs",
         "health": "/api/health"
     }

@@ -1114,14 +1114,15 @@ async def manual_cross_check_document_details(request: ManualCrossCheckRequest):
 async def health_check():
                                              
     try:
-                       
-        face_service = get_document_processor().face_service
+        # Keep health endpoint lightweight for Render startup probes.
+        # Do not initialize heavyweight AI models/services here.
         services = {
-            'paddleocr': 'operational',
-            'document_processor': 'operational',
-            'face_model': 'operational' if face_service else 'unavailable',
-            'fraud_detector': 'operational',
-            'quality_assessor': 'operational',
+            'api': 'operational',
+            'document_processor': 'lazy_init',
+            'ocr': 'lazy_init',
+            'face_model': 'lazy_init',
+            'fraud_detector': 'lazy_init',
+            'quality_assessor': 'lazy_init',
         }
 
         return HealthResponse(
