@@ -18,12 +18,12 @@ const LandingPage = () => {
           <div className="max-w-md mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded bg-gradient-to-tr from-primary to-orange-600 flex items-center justify-center">
-                <span className="material-icons text-white text-[14px]">verified_user</span>
+                <span className="material-symbols-outlined text-white text-[14px]">verified_user</span>
               </div>
               <span className="font-bold text-lg tracking-tight">DocVerify</span>
             </div>
             <button className="text-gray-400 hover:text-white transition-colors">
-              <span className="material-icons">menu</span>
+              <span className="material-symbols-outlined">menu</span>
             </button>
           </div>
         </nav>
@@ -61,7 +61,7 @@ const LandingPage = () => {
                     <div className="w-10 h-8 rounded border border-white/10 bg-white/5 flex items-center justify-center">
                       <div className="w-6 h-4 bg-gradient-to-r from-yellow-600/50 to-yellow-300/50 rounded-sm"></div>
                     </div>
-                    <span className="material-icons text-primary text-xl">check_circle</span>
+                    <span className="material-symbols-outlined text-primary text-xl">check_circle</span>
                   </div>
                   <div className="space-y-3 mt-auto">
                     <div className="w-12 h-12 bg-white/5 rounded-full mb-4 border border-white/5"></div>
@@ -96,7 +96,7 @@ const LandingPage = () => {
               >
                 <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 <span className="relative flex items-center justify-center gap-2">
-                  <span className="material-icons text-primary group-hover:text-white transition-colors text-xl">upload_file</span>
+                  <span className="material-symbols-outlined text-primary group-hover:text-white transition-colors text-xl">upload_file</span>
                   Start ID Verification
                 </span>
               </button>
@@ -114,25 +114,25 @@ const LandingPage = () => {
             <p className="text-center text-xs text-gray-500 uppercase tracking-widest mb-6">Trusted by leading fintechs</p>
             <div className="flex justify-between items-center px-2 opacity-40 grayscale">
               <div className="flex items-center gap-1">
-                <span className="material-icons text-xl">account_balance</span>
+                <span className="material-symbols-outlined text-xl">account_balance</span>
                 <span className="font-bold text-sm">BankFirst</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="material-icons text-xl">verified_user</span>
+                <span className="material-symbols-outlined text-xl">verified_user</span>
                 <span className="font-bold text-sm">SecurePay</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="material-icons text-xl">timeline</span>
+                <span className="material-symbols-outlined text-xl">timeline</span>
                 <span className="font-bold text-sm">Investo</span>
               </div>
             </div>
             <div className="flex justify-center gap-6 mt-8">
               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded border border-white/5">
-                <span className="material-icons text-gray-400 text-sm">shield</span>
+                <span className="material-symbols-outlined text-gray-400 text-sm">shield</span>
                 <span className="text-[10px] text-gray-400 font-mono">ISO 27001</span>
               </div>
               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded border border-white/5">
-                <span className="material-icons text-gray-400 text-sm">lock</span>
+                <span className="material-symbols-outlined text-gray-400 text-sm">lock</span>
                 <span className="text-[10px] text-gray-400 font-mono">GDPR READY</span>
               </div>
             </div>
