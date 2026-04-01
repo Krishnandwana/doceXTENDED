@@ -27,6 +27,12 @@ pip install -r requirements.txt
 python run_backend.py
 ```
 
+This backend directory is self-contained for deployment (includes `api/`, `services/`, and `ai/`).
+For Render, use:
+
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
+
 ## API Docs
 
 - Swagger: `http://localhost:8000/docs`

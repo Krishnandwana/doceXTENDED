@@ -27,7 +27,7 @@ app = FastAPI(
                                                       
 allowed_origins_str = os.getenv(
     "ALLOWED_ORIGINS",
-    "https://doce-xtended.vercel.app,https://docu-verify-eight.vercel.app,http://localhost:3005,http://localhost:3000"
+    "https://docu-verify.onrender.com,https://doce-xtended.vercel.app,https://docu-verify-eight.vercel.app,http://localhost:3005,http://localhost:3000"
 )
 
                                                                       
@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
                 
     uvicorn.run(
-        "backend.api.main:app",
+        "api.main:app",
         host=host,
         port=port,
         reload=True,

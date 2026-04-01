@@ -5,7 +5,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Box, Sphere } from '@react-three/drei';
 import { motion } from 'framer-motion';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'https://docu-verify.onrender.com').replace(/\/+$/, '');
 
 // 3D Document Scanner Component
 function DocumentScanner({ isScanning, progress }) {

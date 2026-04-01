@@ -7,7 +7,7 @@ import { OrbitControls, Box, Sphere } from '@react-three/drei';
 import { motion } from 'framer-motion';
 import * as faceapi from 'face-api.js';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'https://docu-verify.onrender.com').replace(/\/+$/, '');
 
 // 3D Scanning Animation Component
 function ScanningAnimation({ isScanning }) {
